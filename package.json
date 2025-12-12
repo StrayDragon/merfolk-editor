@@ -1,0 +1,67 @@
+{
+  "name": "merfolk-editor",
+  "version": "0.1.0",
+  "description": "A visual Mermaid flowchart editor with bidirectional sync",
+  "type": "module",
+  "main": "dist/lib/index.js",
+  "types": "dist/lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lib/index.d.ts",
+      "import": "./dist/lib/index.js"
+    },
+    "./style": "./dist/style.css"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && npm run build:lib",
+    "build:lib": "vite build --config vite.config.lib.ts",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest"
+  },
+  "packageManager": "pnpm@10.24.0",
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^6.2.1",
+    "@tsconfig/svelte": "^5.0.6",
+    "@types/d3": "^7.4.3",
+    "svelte": "^5.45.10",
+    "svelte-check": "^4.3.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7",
+    "vitest": "^4.0.15"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^1.1.8",
+    "d3": "^7.9.0",
+    "mermaid": "^11.12.2"
+  },
+  "keywords": [
+    "mermaid",
+    "flowchart",
+    "diagram",
+    "editor",
+    "visual",
+    "interactive",
+    "svelte",
+    "typescript"
+  ],
+  "homepage": "https://github.com/your-username/merfolk-editor#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-username/merfolk-editor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/merfolk-editor/issues"
+  },
+  "author": {
+    "name": "Your Name",
+    "email": "your.email@example.com"
+  },
+  "license": "MIT"
+}
