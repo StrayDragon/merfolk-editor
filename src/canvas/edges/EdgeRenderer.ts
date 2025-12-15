@@ -367,6 +367,10 @@ export class EdgeRenderer {
     const textWidth = text.length * 7 + padding * 2;
     const textHeight = 16 + padding * 2;
 
+    // Ensure no existing label elements
+    group.selectAll('.edge-label-bg').remove();
+    group.selectAll('.edge-label').remove();
+
     group
       .append('rect')
       .attr('x', midX - textWidth / 2)

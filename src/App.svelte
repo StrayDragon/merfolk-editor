@@ -1,13 +1,17 @@
 <script lang="ts">
   import Editor from './components/Editor.svelte';
 
-  // Sample Mermaid code for testing
+  // Sample Mermaid code for testing (including bidirectional edges)
   const initialCode = `flowchart TB
     A[Start] --> B{Is it working?}
     B -->|Yes| C[Great!]
     B -->|No| D[Debug]
-    D --> B
+    D <--> B
     C --> E((End))
+
+    %% Test different bidirectional edge types
+    F x--x G
+    H <--> I
 `;
 </script>
 

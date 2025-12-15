@@ -11,14 +11,13 @@
   let mermaidError = $state<string | null>(null);
   let interactiveError = $state<string | null>(null);
 
-  let mermaidCanvasRef: MermaidCanvas | null = null;
   let interactiveCanvasRef: InteractiveCanvas | null = null;
 
   function handleMermaidError(error: string): void {
     mermaidError = error;
   }
 
-  function handleInteractiveError(error: string): void {
+  function handleInteractiveError(error: string | null): void {
     interactiveError = error;
   }
 
@@ -52,7 +51,6 @@
     </div>
     <div class="panel-content">
       <MermaidCanvas
-        bind:this={mermaidCanvasRef}
         {code}
         onError={handleMermaidError}
       />

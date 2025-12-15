@@ -156,9 +156,20 @@ export class FlowchartModel extends EventEmitter<ModelChangeEvent> {
   // ============ Edge Operations ============
 
   /**
-   * Generate a unique edge ID
+   * Generate a unique edge ID with suffix for duplicates
    */
-  private generateEdgeId(): string {
+  private generateEdgeId(baseId?: string): string {
+    if (baseId) {
+      // If base ID provided, check for duplicates and add suffix if needed
+      let suffix = 1;
+      let newId = baseId;
+      while (this._edges.has(newId)) {
+        newId = `${baseId}-dup${suffix}`;
+        suffix++;
+      }
+      return newId;
+    }
+    // Fallback to original method
     return `edge-${++this._edgeCounter}`;
   }
 
@@ -166,10 +177,8 @@ export class FlowchartModel extends EventEmitter<ModelChangeEvent> {
    * Add a new edge to the model
    */
   addEdge(data: Omit<EdgeData, 'id'> & { id?: string }): FlowEdge {
-    const id = data.id || this.generateEdgeId();
-    if (this._edges.has(id)) {
-      throw new Error(`Edge with id "${id}" already exists`);
-    }
+    // Generate unique ID, handling duplicates
+    const id = this.generateEdgeId(data.id);
 
     // Validate source and target exist
     if (!this._nodes.has(data.source)) {

@@ -157,7 +157,7 @@ export class SyncEngine {
   /**
    * 添加边
    */
-  addEdge(edgeData: EdgeData): void {
+  addEdge(edgeData: Omit<EdgeData, 'id'> & { id?: string }): void {
     this.model.addEdge(edgeData);
     this.debouncedSerialize();
   }

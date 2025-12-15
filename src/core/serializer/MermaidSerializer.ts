@@ -204,18 +204,18 @@ export class MermaidSerializer {
       // Normal lines
       if (arrowStart === 'arrow' && arrowEnd === 'arrow') {
         baseOp = '<-->';
-      } else if (arrowEnd === 'arrow') {
-        baseOp = '-->';
       } else if (arrowStart === 'arrow') {
         baseOp = '<--';
-      } else if (arrowEnd === 'circle') {
-        baseOp = '--o';
-      } else if (arrowEnd === 'cross') {
-        baseOp = '--x';
+      } else if (arrowEnd === 'arrow') {
+        baseOp = '-->';
       } else if (arrowStart === 'circle' && arrowEnd === 'circle') {
         baseOp = 'o--o';
       } else if (arrowStart === 'cross' && arrowEnd === 'cross') {
         baseOp = 'x--x';
+      } else if (arrowEnd === 'circle') {
+        baseOp = '--o';
+      } else if (arrowEnd === 'cross') {
+        baseOp = '--x';
       } else {
         baseOp = '---';
       }

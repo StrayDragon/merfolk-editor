@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import mermaid from 'mermaid';
 
   interface Props {
@@ -181,6 +181,7 @@
   }
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   class="mermaid-canvas"
   bind:this={containerEl}

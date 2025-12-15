@@ -23,13 +23,20 @@
     "build:lib": "vite build --config vite.config.lib.ts",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test": "vitest"
+    "test": "vitest",
+    "cy:open": "cypress open",
+    "cy:run": "cypress run"
   },
   "packageManager": "pnpm@10.24.0",
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@sveltejs/vite-plugin-svelte": "^6.2.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/svelte": "^5.2.9",
     "@tsconfig/svelte": "^5.0.6",
     "@types/d3": "^7.4.3",
+    "cypress": "^15.7.1",
+    "jsdom": "^27.3.0",
     "svelte": "^5.45.10",
     "svelte-check": "^4.3.4",
     "typescript": "^5.9.3",

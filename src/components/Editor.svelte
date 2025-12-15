@@ -71,7 +71,7 @@
   /**
    * Handle render error from canvas
    */
-  function handleRenderError(error: string): void {
+  function handleRenderError(error: string | null): void {
     parseError = error;
   }
 
@@ -122,59 +122,73 @@
     canvasRef?.zoomOut();
   }
 
-  function resetZoom(): void {
-    canvasRef?.resetZoom();
-  }
-
   // 节点和边计数器（用于生成唯一 ID）
   let nodeCounter = 0;
-  let edgeCounter = 0;
 
   /**
    * 添加新节点
    */
   function handleAddNode(): void {
-    const newId = `node${++nodeCounter}`;
-    syncEngine.addNode({
-      id: newId,
-      text: `New Node ${nodeCounter}`,
-      shape: 'rect',
-      cssClasses: [],
-    });
+    try {
+      const newId = `node${++nodeCounter}`;
+      syncEngine.addNode({
+        id: newId,
+        text: `New Node ${nodeCounter}`,
+        shape: 'rect',
+        cssClasses: [],
+      });
+    } catch (error) {
+      console.error('[Editor] Failed to add node:', error);
+      // 可以在这里添加用户友好的错误提示
+    }
   }
 
   /**
    * 切换边创建模式
    */
-  let edgeCreationMode = false;
+  let edgeCreationMode = $state(false);
 
   function handleToggleEdgeMode(): void {
-    edgeCreationMode = !edgeCreationMode;
-    canvasRef?.setEdgeCreationMode(edgeCreationMode);
+    try {
+      edgeCreationMode = !edgeCreationMode;
+      canvasRef?.setEdgeCreationMode(edgeCreationMode);
+    } catch (error) {
+      console.error('[Editor] Failed to toggle edge mode:', error);
+      // 重置状态以避免UI不一致
+      edgeCreationMode = false;
+    }
   }
 
   /**
    * 添加边
    */
   function handleAddEdge(sourceId: string, targetId: string): void {
-    const newId = `edge${++edgeCounter}`;
-    syncEngine.addEdge({
-      id: newId,
-      source: sourceId,
-      target: targetId,
-      stroke: 'normal',
-      arrowStart: 'none',
-      arrowEnd: 'arrow',
-    });
+    try {
+      // 让 syncEngine/model 处理 ID 生成，避免冲突
+      syncEngine.addEdge({
+        source: sourceId,
+        target: targetId,
+        stroke: 'normal',
+        arrowStart: 'none',
+        arrowEnd: 'arrow',
+      });
+    } catch (error) {
+      console.error('[Editor] Failed to add edge:', error);
+      // 可以在这里添加用户友好的错误提示
+    }
   }
 
   /**
    * 删除节点
    */
   function handleDeleteNode(nodeId: string): void {
-    syncEngine.removeNode(nodeId);
-    if (selectedNodeId === nodeId) {
-      selectedNodeId = null;
+    try {
+      syncEngine.removeNode(nodeId);
+      if (selectedNodeId === nodeId) {
+        selectedNodeId = null;
+      }
+    } catch (error) {
+      console.error('[Editor] Failed to delete node:', error);
     }
   }
 
@@ -183,7 +197,11 @@
    */
   function handleDeleteSelected(): void {
     if (selectedNodeId) {
-      handleDeleteNode(selectedNodeId);
+      try {
+        handleDeleteNode(selectedNodeId);
+      } catch (error) {
+        console.error('[Editor] Failed to delete selected node:', error);
+      }
     }
   }
 </script>
@@ -260,4 +278,5 @@
     display: flex;
     flex-direction: column;
   }
-</style>
+
+  </style>

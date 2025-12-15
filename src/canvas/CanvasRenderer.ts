@@ -247,13 +247,13 @@ export class CanvasRenderer {
   private updateEdgesForNode(nodeId: string): void {
     if (!this.model) return;
 
-    const edges = this.model.getEdgesForNode(nodeId);
-    for (const edge of edges) {
-      const edgeEl = this.edgesGroup.select(`[data-id="${edge.id}"]`);
-      if (!edgeEl.empty()) {
-        edgeEl.remove();
-        this.renderEdge(edge);
-      }
+    // Clear all edge elements completely
+    this.edgesGroup.selectAll('*').remove();
+
+    // Re-render all edges from the model
+    // This ensures complete consistency and avoids any DOM/state issues
+    for (const edge of this.model.edges) {
+      this.renderEdge(edge);
     }
   }
 

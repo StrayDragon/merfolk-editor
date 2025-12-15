@@ -437,6 +437,39 @@ export class MermaidParser {
   }
 
   /**
+   * Generate a consistent edge ID based on content
+   */
+  private generateEdgeId(
+    source: string,
+    target: string,
+    operator: string,
+    text: string | undefined,
+    stroke: StrokeType,
+    arrowStart: ArrowType,
+    arrowEnd: ArrowType
+  ): string {
+    // Create a string that represents all edge properties
+    const edgeContent = [
+      source,
+      target,
+      operator,
+      text || '',
+      stroke,
+      arrowStart,
+      arrowEnd
+    ].join('|');
+
+    // Simple hash function (djb2 algorithm)
+    let hash = 5381;
+    for (let i = 0; i < edgeContent.length; i++) {
+      hash = (hash * 33) ^ edgeContent.charCodeAt(i);
+    }
+
+    // Convert to positive hex string and add prefix
+    return `edge-${(hash >>> 0).toString(16)}`;
+  }
+
+  /**
    * Create an edge between two nodes
    */
   private createEdge(
@@ -463,8 +496,11 @@ export class MermaidParser {
       }
     }
 
+    // Generate consistent ID based on edge content
+    const edgeId = this.generateEdgeId(source, target, operator, text, stroke, arrowStart, arrowEnd);
+
     const edge: EdgeData = {
-      id: `edge-${++ctx.edgeCounter}`,
+      id: edgeId,
       source,
       target,
       text,

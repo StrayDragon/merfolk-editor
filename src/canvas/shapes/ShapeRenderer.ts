@@ -7,7 +7,6 @@ import type { BoundingBox } from '../../core/model/types';
  */
 const DEFAULT_WIDTH = 150;
 const DEFAULT_HEIGHT = 54;
-const DEFAULT_PADDING = 10;
 
 /**
  * Mermaid default colors
@@ -138,8 +137,9 @@ export class ShapeRenderer {
     stroke: string,
     strokeWidth: number
   ): void {
-    // width and height should be equal (diameter)
-    const r = width / 2;
+    // Use the smaller dimension as diameter to honor provided height
+    const diameter = Math.min(width, height);
+    const r = diameter / 2;
     group
       .append('circle')
       .attr('cx', 0)
@@ -162,8 +162,9 @@ export class ShapeRenderer {
     stroke: string,
     strokeWidth: number
   ): void {
-    const r = Math.min(width, height) / 2;
-    const innerR = r - 6;
+    const diameter = Math.min(width, height);
+    const r = diameter / 2;
+    const innerR = Math.max(r - 6, 0);
 
     // Outer circle
     group
@@ -201,7 +202,7 @@ export class ShapeRenderer {
     strokeWidth: number
   ): void {
     // In Mermaid, s = width = height for diamond (it's a square rotated 45°)
-    const s = width; // width and height should be equal for diamond
+    const s = Math.min(width, height); // keep symmetry if explicit size differs
 
     // Mermaid's points (before translation)
     const points = [

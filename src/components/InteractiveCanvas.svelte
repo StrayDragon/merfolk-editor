@@ -2,14 +2,16 @@
   import { onMount } from 'svelte';
   import mermaid from 'mermaid';
   import * as d3 from 'd3';
+  import { MermaidParser } from '../core/parser/MermaidParser';
+  import type { FlowEdge } from '../core/model/Edge';
+  import type { ArrowType } from '../core/model/types';
 
   interface Props {
     code: string;
-    onError?: (error: string) => void;
+    /** Error callback (null = no error) */
+    onError?: (error: string | null) => void;
     onNodeMove?: (nodeId: string, x: number, y: number) => void;
     onNodeSelect?: (nodeId: string | null) => void;
-    /** 代码变更回调（拖拽节点后触发） */
-    onCodeChange?: (code: string) => void;
     /** 删除节点回调 */
     onDeleteNode?: (nodeId: string) => void;
     /** 添加边回调 */
@@ -27,7 +29,6 @@
     onError,
     onNodeMove,
     onNodeSelect,
-    onCodeChange,
     onDeleteNode,
     onAddEdge,
     showGrid = true,
@@ -43,6 +44,9 @@
   // 边创建模式
   let edgeCreationMode = $state(false);
   let edgeCreationSource: string | null = null;
+
+  // Parser 实例用于解析代码和获取边信息
+  const parser = new MermaidParser();
 
   // 节点位置信息
   interface NodeInfo {
@@ -63,6 +67,24 @@
     targetId: string;
     labelElement?: SVGGElement;
     originalPoints: string;
+    markerStart?: string; // 保存起始箭头标记
+    markerEnd?: string;   // 保存结束箭头标记
+    cssClasses?: string;  // 保存CSS类
+    stroke?: string;      // 保存边颜色
+    strokeWidth?: string; // 保存边宽度
+  }
+
+  interface EdgePathCandidate {
+    path: SVGPathElement;
+    endpoints: { sourceId: string | null; targetId: string | null };
+    originalPoints: string;
+    markerStart?: string | null;
+    markerEnd?: string | null;
+    markerStartType: ArrowType;
+    markerEndType: ArrowType;
+    cssClasses?: string | null;
+    stroke?: string | null;
+    strokeWidth?: string | null;
   }
 
   let nodeInfoMap = new Map<string, NodeInfo>();
@@ -95,38 +117,48 @@
     const id = `mermaid-interactive-${++renderCounter}`;
 
     try {
+      // 首先尝试解析代码
       await mermaid.parse(mermaidCode);
-      const { svg } = await mermaid.render(id, mermaidCode);
 
+      // 解析成功，渲染图表
+      const { svg } = await mermaid.render(id, mermaidCode);
       svgContainerEl.innerHTML = svg;
 
-      // 设置交互
-      setupInteraction();
+      // 设置交互（传递解析后的模型信息）
+      setupInteraction(mermaidCode);
       setupZoomPan();
+
+      // 清除之前的错误状态
+      onError?.(null);
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : 'Render error';
-      onError?.(errorMsg);
-      svgContainerEl.innerHTML = `
-        <div class="render-error">
-          <div class="error-title">Render Error</div>
-          <pre class="error-message">${escapeHtml(errorMsg)}</pre>
-        </div>
-      `;
-    }
-  }
 
-  function escapeHtml(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      // 通知父组件有错误，但不破坏画布
+      onError?.(errorMsg);
+
+      // 尝试渲染一个简单的占位符或保持之前的画布状态
+      if (!svgContainerEl.querySelector('svg')) {
+        // 只有当画布为空时才显示占位符
+        svgContainerEl.innerHTML = `
+          <div class="canvas-placeholder">
+            <div class="placeholder-content">
+              <div class="placeholder-icon">📝</div>
+              <div class="placeholder-text">
+                <h3>Waiting for valid code...</h3>
+                <p>Fix the syntax error in the code panel to see your diagram</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      // 如果已经有画布内容，保持不变，让用户继续操作
+    }
   }
 
   /**
    * 设置节点交互
    */
-  function setupInteraction(): void {
+  function setupInteraction(mermaidCode: string): void {
     const svg = svgContainerEl?.querySelector('svg');
     if (!svg) return;
 
@@ -176,52 +208,83 @@
       nodeEl.style.cursor = 'move';
     });
 
-    // 查找所有边 - 使用多种选择器
-    const edgePaths = svg.querySelectorAll(
-      'path[data-edge="true"], path.flowchart-link, g.edgePaths path, .edgePath path'
-    );
+    // 解析代码获取边的结构信息
+    let model;
+    try {
+      model = parser.parse(mermaidCode);
+    } catch (e) {
+      console.warn('[InteractiveCanvas] Failed to parse code for edge matching:', e);
+      model = null;
+    }
 
-    // 查找所有边标签
-    const edgeLabels = svg.querySelectorAll('g.edgeLabel');
+    // 查找所有边和标签（转换为数组以避免 NodeList 的兼容性问题）
+    const edgePathList = Array.from(
+      svg.querySelectorAll(
+        'path[data-edge="true"], path.flowchart-link, g.edgePaths path, .edgePath path'
+      )
+    ) as SVGPathElement[];
 
-    console.log('[InteractiveCanvas] Found nodes:', Array.from(nodeInfoMap.keys()));
-    console.log('[InteractiveCanvas] Found edge paths:', edgePaths.length);
-    console.log('[InteractiveCanvas] Found edge labels:', edgeLabels.length);
+    // 查找标签元素 - 尝试多种选择器
+    const edgeLabelList = Array.from(
+      svg.querySelectorAll('g.edgeLabel, g.edge-label, g.label, text')
+    ).filter(el => {
+      // 过滤出真正的标签元素（有文本内容的g元素或直接是text元素）
+      const isLabel = el.tagName === 'text' ||
+                     (el.tagName === 'g' && el.querySelector('text'));
+      return isLabel;
+    }) as SVGGElement[];
 
-    let edgeIndex = 0;
-    edgePaths.forEach((pathEl) => {
-      const path = pathEl as SVGPathElement;
-      const edgeId = path.getAttribute('data-id') || path.id || `edge-${edgeInfoList.length}`;
-      const pointsData = path.getAttribute('data-points');
+    if (model && model.edges.length > 0) {
+      const candidates = buildEdgePathCandidates(edgePathList);
+      const usedPaths = new Set<SVGPathElement>();
+      const usedLabels = new Set<number>();
 
-      // 尝试从 ID 或其他属性推断源和目标
-      let { sourceId, targetId } = inferEdgeEndpoints(edgeId, path);
+      model.edges.forEach((edge) => {
+        const pathCandidate = findPathForEdge(edge, candidates, usedPaths);
+        if (!pathCandidate) {
+          console.warn(`[InteractiveCanvas] Could not find path for edge ${edge.id}`);
+          return;
+        }
 
-      // 如果无法推断，尝试通过几何位置匹配
-      if (!sourceId || !targetId) {
-        const endpoints = findEdgeEndpointsByGeometry(path);
-        sourceId = endpoints.sourceId;
-        targetId = endpoints.targetId;
-      }
-
-      if (sourceId && targetId && nodeInfoMap.has(sourceId) && nodeInfoMap.has(targetId)) {
-        // 通过索引关联标签（Mermaid 的边和标签顺序一致）
-        const labelEl = edgeLabels[edgeIndex] as SVGGElement | undefined;
+        usedPaths.add(pathCandidate.path);
+        const labelElement = pickLabelForPath(pathCandidate.path, edgeLabelList, usedLabels);
 
         edgeInfoList.push({
-          id: edgeId,
-          element: path,
-          sourceId,
-          targetId,
-          labelElement: labelEl,
-          originalPoints: pointsData || '',
+          id: edge.id,
+          element: pathCandidate.path,
+          sourceId: edge.source,
+          targetId: edge.target,
+          labelElement,
+          originalPoints: pathCandidate.originalPoints,
+          markerStart: pathCandidate.markerStart ?? undefined,
+          markerEnd: pathCandidate.markerEnd ?? undefined,
+          cssClasses: pathCandidate.cssClasses ?? undefined,
+          stroke: pathCandidate.stroke ?? undefined,
+          strokeWidth: pathCandidate.strokeWidth ?? undefined,
         });
-
-        edgeIndex++;
-      }
-    });
-
-    console.log('[InteractiveCanvas] Registered edges:', edgeInfoList.length);
+      });
+    } else {
+      // 后备方案：使用几何匹配
+      const usedLabels = new Set<number>();
+      edgePathList.forEach((path, index) => {
+        const endpoints = resolveEdgeEndpoints(path);
+        if (endpoints.sourceId && endpoints.targetId) {
+          edgeInfoList.push({
+            id: `edge-${index}`,
+            element: path,
+            sourceId: endpoints.sourceId,
+            targetId: endpoints.targetId,
+            labelElement: pickLabelForPath(path, edgeLabelList, usedLabels),
+            originalPoints: path.getAttribute('data-points') || '',
+            markerStart: path.getAttribute('marker-start') ?? undefined,
+            markerEnd: path.getAttribute('marker-end') ?? undefined,
+            cssClasses: path.getAttribute('class') ?? undefined,
+            stroke: path.getAttribute('stroke') ?? undefined,
+            strokeWidth: path.getAttribute('stroke-width') ?? undefined,
+          });
+        }
+      });
+    }
 
     // 点击空白处取消选择
     svg.addEventListener('click', (e) => {
@@ -352,40 +415,138 @@
   }
 
   /**
-   * 查找边的标签元素
+   * 构建边路径候选列表，带上端点和样式信息
    */
-  function findEdgeLabel(svg: SVGSVGElement, edgeId: string): SVGGElement | null {
-    // 查找 edgeLabel 组 - 尝试多种方式
-    const labels = svg.querySelectorAll('g.edgeLabel');
-
-    for (const label of labels) {
-      // 方式1: 通过 data-id 属性
-      const dataId = label.querySelector('[data-id]')?.getAttribute('data-id');
-      if (dataId === edgeId) {
-        return label as SVGGElement;
-      }
-
-      // 方式2: 通过 id 属性
-      if (label.id === edgeId || label.id === `edgeLabel-${edgeId}`) {
-        return label as SVGGElement;
-      }
-    }
-
-    return null;
+  function buildEdgePathCandidates(paths: SVGPathElement[]): EdgePathCandidate[] {
+    return paths.map((path) => ({
+      path,
+      endpoints: resolveEdgeEndpoints(path),
+      originalPoints: path.getAttribute('data-points') || '',
+      markerStart: path.getAttribute('marker-start'),
+      markerEnd: path.getAttribute('marker-end'),
+      cssClasses: path.getAttribute('class'),
+      stroke: path.getAttribute('stroke'),
+      strokeWidth: path.getAttribute('stroke-width'),
+    }));
   }
 
   /**
-   * 查找所有边标签并建立映射
+   * 根据几何或属性推断边的端点
    */
-  function findAllEdgeLabels(svg: SVGSVGElement): Map<number, SVGGElement> {
-    const labelMap = new Map<number, SVGGElement>();
-    const labels = svg.querySelectorAll('g.edgeLabel');
+  function resolveEdgeEndpoints(
+    path: SVGPathElement
+  ): { sourceId: string | null; targetId: string | null } {
+    const geometry = findEdgeEndpointsByGeometry(path);
+    if (geometry.sourceId && geometry.targetId) {
+      return geometry;
+    }
+    const inferred = inferEdgeEndpoints(path.id, path);
+    if (inferred.sourceId && inferred.targetId) {
+      return inferred;
+    }
+    return geometry;
+  }
+
+  /**
+   * 选择与模型边匹配的路径
+   */
+  function findPathForEdge(
+    edge: FlowEdge,
+    candidates: EdgePathCandidate[],
+    usedPaths: Set<SVGPathElement>
+  ): EdgePathCandidate | undefined {
+    const directMatch = candidates.find(
+      (c) =>
+        !usedPaths.has(c.path) &&
+        c.endpoints.sourceId === edge.source &&
+        c.endpoints.targetId === edge.target
+    );
+    if (directMatch) return directMatch;
+
+    // 对于双向边，允许任意方向匹配
+    if (isBidirectionalEdge(edge)) {
+      const reversed = candidates.find(
+        (c) =>
+          !usedPaths.has(c.path) &&
+          c.endpoints.sourceId === edge.target &&
+          c.endpoints.targetId === edge.source
+      );
+      if (reversed) return reversed;
+    }
+
+    // 宽松匹配：只要任一端点对得上就优先使用
+    const looseMatch = candidates.find(
+      (c) =>
+        !usedPaths.has(c.path) &&
+        (c.endpoints.sourceId === edge.source ||
+          c.endpoints.targetId === edge.target ||
+          c.endpoints.sourceId === edge.target ||
+          c.endpoints.targetId === edge.source)
+    );
+    if (looseMatch) return looseMatch;
+
+    // 最后回退到任意未使用的路径
+    return candidates.find((c) => !usedPaths.has(c.path));
+  }
+
+  function isBidirectionalEdge(edge: FlowEdge): boolean {
+    return edge.arrowStart === 'arrow' && edge.arrowEnd === 'arrow';
+  }
+
+  /**
+   * 为路径挑选最近的标签，避免重复使用
+   */
+  function pickLabelForPath(
+    path: SVGPathElement,
+    labels: SVGGElement[],
+    used: Set<number>
+  ): SVGGElement | undefined {
+    if (labels.length === 0) return undefined;
+
+    const pathBox = path.getBBox();
+    const pathCenter = {
+      x: pathBox.x + pathBox.width / 2,
+      y: pathBox.y + pathBox.height / 2,
+    };
+
+    // 记录所有候选标签的分数
+    const candidates: Array<{ index: number; score: number; distance: number; hasText: boolean }> = [];
 
     labels.forEach((label, index) => {
-      labelMap.set(index, label as SVGGElement);
+      if (used.has(index)) return;
+
+      const textElement = label.querySelector('text');
+      const labelText = textElement?.textContent?.trim() || '';
+
+      const box = label.getBBox();
+      const labelCenter = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const distance = Math.hypot(labelCenter.x - pathCenter.x, labelCenter.y - pathCenter.y);
+
+      // 计算匹配分数：距离越近分数越高，有文本的标签分数更高
+      let score = 0;
+      if (labelText) {
+        // 有文本的标签优先，但距离不能太远
+        score = distance < 150 ? 1000 - distance : 0;
+      } else {
+        // 没有文本的标签，只有在距离很近时才选择
+        score = distance < 50 ? 500 - distance : 0;
+      }
+
+      if (score > 0) {
+        candidates.push({ index, score, distance, hasText: !!labelText });
+      }
     });
 
-    return labelMap;
+    // 按分数排序，分数高的优先
+    candidates.sort((a, b) => b.score - a.score);
+
+    if (candidates.length > 0) {
+      const best = candidates[0];
+      used.add(best.index);
+      return labels[best.index];
+    }
+
+    return undefined;
   }
 
   /**
@@ -467,11 +628,60 @@
   }
 
   /**
-   * 更新 SVG viewBox 以适应所有节点（无限画布模式下不再限制 viewBox）
+   * 计算 SVG viewBox 以适应所有节点位置
+   */
+  function calculateDynamicViewBox(): { minX: number; minY: number; width: number; height: number } | null {
+    if (nodeInfoMap.size === 0) return null;
+
+    // 计算所有节点的边界
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (const nodeInfo of nodeInfoMap.values()) {
+      // 获取节点的实际边界框
+      const bbox = nodeInfo.element.getBBox();
+      const nodeX = nodeInfo.x;
+      const nodeY = nodeInfo.y;
+
+      minX = Math.min(minX, nodeX + bbox.x);
+      minY = Math.min(minY, nodeY + bbox.y);
+      maxX = Math.max(maxX, nodeX + bbox.x + bbox.width);
+      maxY = Math.max(maxY, nodeY + bbox.y + bbox.height);
+    }
+
+    // 添加边距（确保节点不会贴着边界）
+    const padding = 50;
+    minX -= padding;
+    minY -= padding;
+    maxX += padding;
+    maxY += padding;
+
+    return {
+      minX,
+      minY,
+      width: maxX - minX,
+      height: maxY - minY
+    };
+  }
+
+  /**
+   * 更新 SVG viewBox 以适应所有节点（支持无限画布）
    */
   function updateSvgViewBox(): void {
-    // 无限画布模式下，不需要更新 viewBox
-    // 节点可以自由移动到任何位置
+    const svg = svgContainerEl?.querySelector('svg');
+    if (!svg) return;
+
+    const viewBox = calculateDynamicViewBox();
+    if (viewBox) {
+      // 设置 viewBox 以包含所有节点
+      svg.setAttribute('viewBox', `${viewBox.minX} ${viewBox.minY} ${viewBox.width} ${viewBox.height}`);
+
+      // 同时更新 SVG 的尺寸以避免裁剪
+      svg.style.width = `${viewBox.width}px`;
+      svg.style.height = `${viewBox.height}px`;
+    }
   }
 
   /**
@@ -492,26 +702,55 @@
     const sourceNode = nodeInfoMap.get(edge.sourceId);
     const targetNode = nodeInfoMap.get(edge.targetId);
 
-    if (!sourceNode || !targetNode) return;
+    if (!sourceNode || !targetNode) {
+      console.warn(`[updateEdgePath] Missing nodes for edge ${edge.id}: source=${edge.sourceId}, target=${edge.targetId}`);
+      return;
+    }
 
     // 计算新的路径点
     const points = calculateEdgePoints(sourceNode, targetNode);
 
     // 生成新的路径
     const pathD = generateCurvePath(points);
+
     edge.element.setAttribute('d', pathD);
 
-    // 更新标签位置 - 使用路径的实际中点
+    // 恢复所有边属性 - 这是关键！
+    if (edge.markerStart) {
+      edge.element.setAttribute('marker-start', edge.markerStart);
+    } else {
+      edge.element.removeAttribute('marker-start');
+    }
+
+    if (edge.markerEnd) {
+      edge.element.setAttribute('marker-end', edge.markerEnd);
+    } else {
+      edge.element.removeAttribute('marker-end');
+    }
+
+    // 恢复CSS类
+    if (edge.cssClasses) {
+      edge.element.setAttribute('class', edge.cssClasses);
+    }
+
+    // 恢复边颜色
+    if (edge.stroke) {
+      edge.element.setAttribute('stroke', edge.stroke);
+    }
+
+    // 恢复边宽度
+    if (edge.strokeWidth) {
+      edge.element.setAttribute('stroke-width', edge.strokeWidth);
+    }
+
+    // 更新标签位置 - 使用类似 Mermaid 的算法
     if (edge.labelElement) {
-      try {
-        const pathLength = edge.element.getTotalLength();
-        const midPoint = edge.element.getPointAtLength(pathLength / 2);
-        edge.labelElement.setAttribute('transform', `translate(${midPoint.x}, ${midPoint.y})`);
-      } catch {
-        // 如果无法获取路径长度，使用计算的中点
-        const midPoint = points[Math.floor(points.length / 2)];
-        edge.labelElement.setAttribute('transform', `translate(${midPoint.x}, ${midPoint.y})`);
-      }
+      const labelPos = calculateLabelPosition(points);
+      edge.labelElement.setAttribute('transform', `translate(${labelPos.x}, ${labelPos.y})`);
+
+      // 确保标签可见性
+      edge.labelElement.style.display = 'block';
+      edge.labelElement.style.visibility = 'visible';
     }
   }
 
@@ -599,6 +838,69 @@
       .curve(d3.curveBasis);
 
     return lineGenerator(points) || '';
+  }
+
+  /**
+   * 计算两点之间的距离
+   */
+  function distance(p1: { x: number; y: number }, p2: { x: number; y: number } | undefined): number {
+    if (!p2) return 0;
+    return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+  }
+
+  /**
+   * 沿着路径计算指定距离处的点
+   */
+  function calculatePoint(points: Array<{ x: number; y: number }>, distanceToTraverse: number): { x: number; y: number } {
+    let prevPoint: { x: number; y: number } | undefined = undefined;
+    let remainingDistance = distanceToTraverse;
+
+    for (const point of points) {
+      if (prevPoint) {
+        const vectorDistance = distance(point, prevPoint);
+        if (vectorDistance === 0) {
+          return prevPoint;
+        }
+        if (remainingDistance <= vectorDistance) {
+          const ratio = remainingDistance / vectorDistance;
+          return {
+            x: prevPoint.x + (point.x - prevPoint.x) * ratio,
+            y: prevPoint.y + (point.y - prevPoint.y) * ratio,
+          };
+        }
+        remainingDistance -= vectorDistance;
+      }
+      prevPoint = point;
+    }
+
+    return prevPoint || points[0];
+  }
+
+  /**
+   * 遍历边到中点
+   */
+  function traverseEdge(points: Array<{ x: number; y: number }>): { x: number; y: number } {
+    let prevPoint: { x: number; y: number } | undefined = undefined;
+    let totalDistance = 0;
+
+    points.forEach((point) => {
+      totalDistance += distance(point, prevPoint);
+      prevPoint = point;
+    });
+
+    // 沿着点遍历总距离的一半
+    const remainingDistance = totalDistance / 2;
+    return calculatePoint(points, remainingDistance);
+  }
+
+  /**
+   * 计算标签位置 - 基于 Mermaid 的算法
+   */
+  function calculateLabelPosition(points: Array<{ x: number; y: number }>): { x: number; y: number } {
+    if (points.length === 1) {
+      return points[0];
+    }
+    return traverseEdge(points);
   }
 
   /**
@@ -724,6 +1026,9 @@
     svg.style.maxWidth = 'none';
     svg.style.width = 'auto';
     svg.style.height = 'auto';
+
+    // 初始更新 viewBox 以包含所有内容
+    updateSvgViewBox();
 
     // 初始居中
     centerContent();
@@ -872,16 +1177,20 @@
   export function fitToView(): void {
     if (!containerEl || !svgContainerEl) return;
 
+    const viewBox = calculateDynamicViewBox();
+    if (!viewBox) return;
+
     const containerRect = containerEl.getBoundingClientRect();
     const padding = 40;
 
-    // 计算适合的缩放比例
-    const scaleX = (containerRect.width - padding * 2) / initialSvgWidth;
-    const scaleY = (containerRect.height - padding * 2) / initialSvgHeight;
+    // 计算适合的缩放比例（基于动态计算的边界）
+    const scaleX = (containerRect.width - padding * 2) / viewBox.width;
+    const scaleY = (containerRect.height - padding * 2) / viewBox.height;
     scale = Math.min(scaleX, scaleY, 1);
 
-    // 居中
-    centerContent();
+    // 调整平移以居中内容
+    translateX = (containerRect.width - viewBox.width * scale) / 2 - viewBox.minX * scale;
+    translateY = (containerRect.height - viewBox.height * scale) / 2 - viewBox.minY * scale;
   }
 
   /**
@@ -1028,5 +1337,48 @@
     overflow-x: auto;
     white-space: pre-wrap;
     word-break: break-word;
+  }
+
+  /* svelte-ignore css_unused_selector */
+  /* 画布占位符样式 */
+  :global(.canvas-placeholder) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    background: #fafafa;
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    margin: 20px;
+  }
+
+  /* svelte-ignore css_unused_selector */
+  :global(.placeholder-content) {
+    text-align: center;
+    max-width: 400px;
+    padding: 40px;
+  }
+
+  /* svelte-ignore css_unused_selector */
+  :global(.placeholder-icon) {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.6;
+  }
+
+  /* svelte-ignore css_unused_selector */
+  :global(.placeholder-text h3) {
+    margin: 0 0 8px 0;
+    color: #666;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  /* svelte-ignore css_unused_selector */
+  :global(.placeholder-text p) {
+    margin: 0;
+    color: #999;
+    font-size: 14px;
+    line-height: 1.4;
   }
 </style>

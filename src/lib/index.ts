@@ -1,12 +1,27 @@
 import Editor from '../components/Editor.svelte';
-import type { SvelteComponent } from 'svelte';
 import { SyncEngine } from '../core/sync/SyncEngine';
+import type { NodeData } from '../core/model/Node';
+import type { EdgeData } from '../core/model/Edge';
+
+type EditorComponentInstance = {
+  $destroy?: () => void;
+  canvasRef?: {
+    zoomIn?: () => void;
+    zoomOut?: () => void;
+    resetZoom?: () => void;
+    fitToView?: () => void;
+    toggleEdgeCreation?: () => void;
+    setEdgeCreationMode?: (enabled: boolean) => void;
+  };
+  showCode?: boolean;
+  getSyncEngine: () => SyncEngine;
+};
 
 /**
  * Merfolk Editor - Mermaid Flowchart Visual Editor Library
  */
 export default class MerfolkEditor {
-  private editor: Editor;
+  private editor: EditorComponentInstance;
   private container: HTMLElement;
   private syncEngine: SyncEngine;
 
@@ -15,7 +30,8 @@ export default class MerfolkEditor {
     this.syncEngine = new SyncEngine(options.sync);
 
     // Create Svelte component
-    this.editor = new Editor({
+    const EditorCtor = Editor as unknown as { new (options: any): EditorComponentInstance };
+    this.editor = new EditorCtor({
       target: container,
       props: {
         initialCode: options.initialCode,
@@ -60,7 +76,7 @@ export default class MerfolkEditor {
   /**
    * 添加边
    */
-  addEdge(edgeData: EdgeData): void {
+  addEdge(edgeData: Omit<EdgeData, 'id'> & { id?: string }): void {
     this.syncEngine.addEdge(edgeData);
   }
 
@@ -168,14 +184,14 @@ export default class MerfolkEditor {
    */
   destroy(): void {
     this.syncEngine.destroy();
-    this.editor.$destroy();
+    this.editor.$destroy?.();
     this.container.innerHTML = '';
   }
 
   /**
    * 设置回调函数
    */
-  private setupCallbacks(options: EditorOptions): void {
+  private setupCallbacks(_options: EditorOptions): void {
     // Set additional callbacks if needed
     // The callbacks are already passed through props
   }
