@@ -135,19 +135,6 @@
       console.error('[Editor] Failed to delete node:', error);
     }
   }
-
-  /**
-   * 删除选中的节点（工具栏按钮用）
-   */
-  function handleDeleteSelected(): void {
-    if (selectedNodeId) {
-      try {
-        handleDeleteNode(selectedNodeId);
-      } catch (error) {
-        console.error('[Editor] Failed to delete selected node:', error);
-      }
-    }
-  }
 </script>
 
 <div class="editor">
@@ -157,8 +144,6 @@
     onFitToView={fitToView}
     onZoomIn={zoomIn}
     onZoomOut={zoomOut}
-    onDeleteSelected={handleDeleteSelected}
-    hasSelection={selectedNodeId !== null}
   />
 
   <div class="editor-content">

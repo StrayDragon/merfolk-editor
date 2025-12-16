@@ -5,8 +5,6 @@
     onFitToView: () => void;
     onZoomIn: () => void;
     onZoomOut: () => void;
-    onDeleteSelected?: () => void;
-    hasSelection?: boolean;
   }
 
   let {
@@ -15,33 +13,12 @@
     onFitToView,
     onZoomIn,
     onZoomOut,
-    onDeleteSelected,
-    hasSelection = false,
   }: Props = $props();
 </script>
 
 <div class="toolbar">
   <div class="toolbar-group">
     <span class="toolbar-title">Merfolk Editor</span>
-  </div>
-
-  <!-- 编辑工具 -->
-  <div class="toolbar-group">
-    {#if onDeleteSelected}
-      <button
-        class="toolbar-btn"
-        class:disabled={!hasSelection}
-        onclick={onDeleteSelected}
-        disabled={!hasSelection}
-        title="Delete Selected"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="3 6 5 6 21 6"/>
-          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-        </svg>
-          <span>Delete</span>
-      </button>
-    {/if}
   </div>
 
   <!-- 视图工具 -->
@@ -135,7 +112,6 @@
     color: #2196f3;
   }
 
-  .toolbar-btn.disabled,
   .toolbar-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;

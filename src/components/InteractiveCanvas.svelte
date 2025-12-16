@@ -63,6 +63,7 @@
     sourceId: string;
     targetId: string;
     labelElement?: SVGGElement | SVGTextElement;
+    labelContainer?: SVGGElement | SVGTextElement;
     labelText?: string;
     originalPoints: string;
     decodedPoints?: Point[];
@@ -257,6 +258,10 @@
           directLabel.labelElement ??
           pickLabelForPath(pathCandidate.path, edgeLabelList, usedLabels);
         const overlayLabel = edge.text ? createOverlayLabel(pathCandidate.path, edge.text) : undefined;
+        const labelContainer =
+          overlayLabel
+            ? getLabelContainer(overlayLabel)
+            : directLabel.labelContainer ?? getLabelContainer(labelElement);
         // 避免重复显示 Mermaid 原标签
         if (labelElement) {
           labelElement.style.opacity = '0';
@@ -284,6 +289,7 @@
           sourceId: edge.source,
           targetId: edge.target,
           labelElement: overlayLabel ?? labelElement,
+          labelContainer,
           labelText: edge.text,
           originalPoints: pathCandidate.originalPoints,
           decodedPoints,
@@ -313,6 +319,7 @@
             pickedLabel && pickedLabel.textContent
               ? createOverlayLabel(path, pickedLabel.textContent.trim())
               : undefined;
+          const labelContainer = getLabelContainer(overlayLabel ?? pickedLabel ?? undefined);
           if (pickedLabel) {
             pickedLabel.style.opacity = '0';
           }
@@ -328,6 +335,7 @@
             sourceId: endpoints.sourceId,
             targetId: endpoints.targetId,
             labelElement: overlayLabel ?? pickedLabel,
+            labelContainer,
             labelText: overlayLabel ? overlayLabel.textContent ?? undefined : pickedLabel?.textContent ?? undefined,
             originalPoints: path.getAttribute('data-points') || '',
             decodedPoints,
@@ -473,8 +481,8 @@
   /**
    * 解码 Mermaid 存在 data-points 上的路径信息
    */
-  function decodeEdgePoints(encoded: string | null): Point[] | null {
-    if (!encoded || typeof atob !== 'function') return null;
+  function decodeEdgePoints(encoded: string | null): Point[] | undefined {
+    if (!encoded || typeof atob !== 'function') return undefined;
 
     try {
       const decoded = atob(encoded);
@@ -491,7 +499,7 @@
       console.warn('[InteractiveCanvas] Failed to decode edge points', error);
     }
 
-    return null;
+    return undefined;
   }
 
   /**

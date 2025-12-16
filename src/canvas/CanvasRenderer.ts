@@ -228,7 +228,7 @@ export class CanvasRenderer {
         nodeGroup.attr('transform', `translate(${newX}, ${newY})`);
 
         // Update connected edges
-        this.updateEdgesForNode(node.id);
+        this.updateEdgesForNode();
       })
       .on('end', () => {
         nodeGroup.classed('dragging', false);
@@ -244,7 +244,7 @@ export class CanvasRenderer {
   /**
    * Update edges connected to a node
    */
-  private updateEdgesForNode(nodeId: string): void {
+  private updateEdgesForNode(): void {
     if (!this.model) return;
 
     // Clear all edge elements completely
