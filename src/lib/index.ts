@@ -1,7 +1,5 @@
 import Editor from '../components/Editor.svelte';
 import { SyncEngine } from '../core/sync/SyncEngine';
-import type { NodeData } from '../core/model/Node';
-import type { EdgeData } from '../core/model/Edge';
 
 type EditorComponentInstance = {
   $destroy?: () => void;
@@ -10,8 +8,6 @@ type EditorComponentInstance = {
     zoomOut?: () => void;
     resetZoom?: () => void;
     fitToView?: () => void;
-    toggleEdgeCreation?: () => void;
-    setEdgeCreationMode?: (enabled: boolean) => void;
   };
   showCode?: boolean;
   getSyncEngine: () => SyncEngine;
@@ -60,31 +56,10 @@ export default class MerfolkEditor {
   }
 
   /**
-   * 添加节点
-   */
-  addNode(nodeData: NodeData): void {
-    this.syncEngine.addNode(nodeData);
-  }
-
-  /**
    * 删除节点
    */
   removeNode(nodeId: string): void {
     this.syncEngine.removeNode(nodeId);
-  }
-
-  /**
-   * 添加边
-   */
-  addEdge(edgeData: Omit<EdgeData, 'id'> & { id?: string }): void {
-    this.syncEngine.addEdge(edgeData);
-  }
-
-  /**
-   * 删除边
-   */
-  removeEdge(edgeId: string): void {
-    this.syncEngine.removeEdge(edgeId);
   }
 
   /**
@@ -154,22 +129,6 @@ export default class MerfolkEditor {
 
   hideCodePanel(): void {
     (this.editor as any).showCode = false;
-  }
-
-  /**
-   * 切换边创建模式
-   */
-  toggleEdgeCreationMode(): void {
-    const canvas = (this.editor as any).canvasRef;
-    canvas?.toggleEdgeCreation();
-  }
-
-  /**
-   * 设置边创建模式
-   */
-  setEdgeCreationMode(enabled: boolean): void {
-    const canvas = (this.editor as any).canvasRef;
-    canvas?.setEdgeCreationMode(enabled);
   }
 
   /**

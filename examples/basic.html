@@ -78,12 +78,9 @@
     <h2>API Controls</h2>
     <div class="button-group">
       <button onclick="getCode()">Get Code</button>
-      <button onclick="addNode()">Add Node</button>
-      <button onclick="addEdge()">Add Edge</button>
       <button onclick="zoomIn()">Zoom In</button>
       <button onclick="zoomOut()">Zoom Out</button>
       <button onclick="fitToView()">Fit to View</button>
-      <button onclick="toggleEdgeMode()">Toggle Edge Mode</button>
       <button onclick="toggleCodePanel()">Toggle Code Panel</button>
     </div>
     <div id="codeOutput" class="code-output" style="display: none;"></div>
@@ -132,33 +129,6 @@
       output.style.display = 'block';
     };
 
-    window.addNode = function() {
-      const nodeId = `node${Date.now()}`;
-      editor.addNode({
-        id: nodeId,
-        text: 'New Node',
-        shape: 'rect',
-        cssClasses: []
-      });
-      // Position it randomly
-      const x = Math.random() * 400 + 100;
-      const y = Math.random() * 300 + 100;
-      editor.setNodePosition(nodeId, x, y);
-    };
-
-    window.addEdge = function() {
-      // This requires knowing node IDs
-      editor.addEdge({
-        id: `edge${Date.now()}`,
-        source: 'A',
-        target: 'D',
-        stroke: 'normal',
-        arrowStart: 'none',
-        arrowEnd: 'arrow',
-        text: 'New Edge'
-      });
-    };
-
     window.zoomIn = function() {
       editor.zoomIn();
     };
@@ -169,10 +139,6 @@
 
     window.fitToView = function() {
       editor.fitToView();
-    };
-
-    window.toggleEdgeMode = function() {
-      editor.toggleEdgeCreationMode();
     };
 
     window.toggleCodePanel = function() {

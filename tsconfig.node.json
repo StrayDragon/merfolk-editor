@@ -7,5 +7,10 @@
     "strict": true,
     "noEmit": true
   },
-  "include": ["vite.config.ts"]
+  "include": [
+    "vite.config.ts",
+    "vite.config.lib.ts",
+    "vitest.config.ts",
+    "playwright.config.ts"
+  ]
 }

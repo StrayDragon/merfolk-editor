@@ -4,7 +4,6 @@
   import * as d3 from 'd3';
   import { MermaidParser } from '../core/parser/MermaidParser';
   import type { FlowEdge } from '../core/model/Edge';
-  import type { ArrowType } from '../core/model/types';
 
   interface Props {
     code: string;
@@ -14,8 +13,6 @@
     onNodeSelect?: (nodeId: string | null) => void;
     /** 删除节点回调 */
     onDeleteNode?: (nodeId: string) => void;
-    /** 添加边回调 */
-    onAddEdge?: (sourceId: string, targetId: string) => void;
     /** 是否显示网格背景 */
     showGrid?: boolean;
     /** 最小缩放比例 */
@@ -30,7 +27,6 @@
     onNodeMove,
     onNodeSelect,
     onDeleteNode,
-    onAddEdge,
     showGrid = true,
     minScale = 0.1,
     maxScale = 4
@@ -41,12 +37,11 @@
   let renderCounter = 0;
   let selectedNodeId: string | null = $state(null);
 
-  // 边创建模式
-  let edgeCreationMode = $state(false);
-  let edgeCreationSource: string | null = null;
-
   // Parser 实例用于解析代码和获取边信息
   const parser = new MermaidParser();
+
+  type Point = { x: number; y: number };
+  type RelativePoint = { t: number; offsetRatio: number };
 
   // 节点位置信息
   interface NodeInfo {
@@ -57,6 +52,8 @@
     width: number;
     height: number;
     originalTransform: string;
+    initialX: number;
+    initialY: number;
   }
 
   // 边信息
@@ -65,8 +62,11 @@
     element: SVGPathElement;
     sourceId: string;
     targetId: string;
-    labelElement?: SVGGElement;
+    labelElement?: SVGGElement | SVGTextElement;
+    labelText?: string;
     originalPoints: string;
+    decodedPoints?: Point[];
+    relativePoints?: RelativePoint[];
     markerStart?: string; // 保存起始箭头标记
     markerEnd?: string;   // 保存结束箭头标记
     cssClasses?: string;  // 保存CSS类
@@ -78,10 +78,9 @@
     path: SVGPathElement;
     endpoints: { sourceId: string | null; targetId: string | null };
     originalPoints: string;
+    decodedPoints?: Point[];
     markerStart?: string | null;
     markerEnd?: string | null;
-    markerStartType: ArrowType;
-    markerEndType: ArrowType;
     cssClasses?: string | null;
     stroke?: string | null;
     strokeWidth?: string | null;
@@ -186,22 +185,17 @@
         width: bbox.width,
         height: bbox.height,
         originalTransform: transform,
+        initialX: x,
+        initialY: y,
       });
 
       // 添加拖拽功能
       setupNodeDrag(nodeEl, nodeId);
 
-      // 添加点击选择/边创建
+      // 添加点击选择
       nodeEl.addEventListener('click', (e) => {
         e.stopPropagation();
-
-        if (edgeCreationMode) {
-          // 边创建模式
-          handleNodeClickForEdgeCreation(nodeId);
-        } else {
-          // 普通选择模式
-          selectNode(nodeId);
-        }
+        selectNode(nodeId);
       });
 
       // 添加视觉反馈
@@ -224,15 +218,26 @@
       )
     ) as SVGPathElement[];
 
-    // 查找标签元素 - 尝试多种选择器
-    const edgeLabelList = Array.from(
-      svg.querySelectorAll('g.edgeLabel, g.edge-label, g.label, text')
-    ).filter(el => {
-      // 过滤出真正的标签元素（有文本内容的g元素或直接是text元素）
-      const isLabel = el.tagName === 'text' ||
-                     (el.tagName === 'g' && el.querySelector('text'));
-      return isLabel;
-    }) as SVGGElement[];
+    // 查找边标签元素 - 仅限 Mermaid 生成的 edgeLabel 容器
+    const rawEdgeLabels = Array.from(
+      svg.querySelectorAll<SVGElement>('g.edgeLabel, g.edge-label, g.edgeLabel *, g.edge-label *')
+    );
+    const edgeLabelSet = new Set<SVGGElement>();
+    rawEdgeLabels.forEach((el) => {
+      const g = el instanceof SVGTextElement
+        ? (el.parentElement as SVGGElement | null) ?? (el as unknown as SVGGElement)
+        : (el as SVGGElement);
+      if (g) {
+        const container = g.closest('g.edgeLabel, g.edge-label') as SVGGElement | null;
+        edgeLabelSet.add(container ?? g);
+      }
+    });
+    const edgeLabelList = Array.from(edgeLabelSet);
+    // Hide Mermaid-rendered edge labels to avoid duplicates; we will draw our own overlays
+    edgeLabelList.forEach(label => {
+      label.style.opacity = '0';
+      label.style.pointerEvents = 'none';
+    });
 
     if (model && model.edges.length > 0) {
       const candidates = buildEdgePathCandidates(edgePathList);
@@ -247,15 +252,42 @@
         }
 
         usedPaths.add(pathCandidate.path);
-        const labelElement = pickLabelForPath(pathCandidate.path, edgeLabelList, usedLabels);
+        const directLabel = findLabelForEdge(edge.id, svg);
+        const labelElement =
+          directLabel.labelElement ??
+          pickLabelForPath(pathCandidate.path, edgeLabelList, usedLabels);
+        const overlayLabel = edge.text ? createOverlayLabel(pathCandidate.path, edge.text) : undefined;
+        // 避免重复显示 Mermaid 原标签
+        if (labelElement) {
+          labelElement.style.opacity = '0';
+        }
+        const initialLabel = overlayLabel ?? labelElement;
+        if (initialLabel) {
+          const pos = getLabelPositionFromPath(
+            pathCandidate.path,
+            pathCandidate.decodedPoints ?? []
+          );
+          initialLabel.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+        }
+
+        const sourceInfo = nodeInfoMap.get(edge.source);
+        const targetInfo = nodeInfoMap.get(edge.target);
+        const decodedPoints = pathCandidate.decodedPoints;
+        const relativePoints =
+          decodedPoints && sourceInfo && targetInfo
+            ? buildRelativePoints(decodedPoints, sourceInfo, targetInfo)
+            : undefined;
 
         edgeInfoList.push({
           id: edge.id,
           element: pathCandidate.path,
           sourceId: edge.source,
           targetId: edge.target,
-          labelElement,
+          labelElement: overlayLabel ?? labelElement,
+          labelText: edge.text,
           originalPoints: pathCandidate.originalPoints,
+          decodedPoints,
+          relativePoints,
           markerStart: pathCandidate.markerStart ?? undefined,
           markerEnd: pathCandidate.markerEnd ?? undefined,
           cssClasses: pathCandidate.cssClasses ?? undefined,
@@ -269,13 +301,37 @@
       edgePathList.forEach((path, index) => {
         const endpoints = resolveEdgeEndpoints(path);
         if (endpoints.sourceId && endpoints.targetId) {
+          const decodedPoints = decodeEdgePoints(path.getAttribute('data-points'));
+          const sourceInfo = nodeInfoMap.get(endpoints.sourceId);
+          const targetInfo = nodeInfoMap.get(endpoints.targetId);
+          const relativePoints =
+            decodedPoints && sourceInfo && targetInfo
+              ? buildRelativePoints(decodedPoints, sourceInfo, targetInfo)
+              : undefined;
+          const pickedLabel = pickLabelForPath(path, edgeLabelList, usedLabels);
+          const overlayLabel =
+            pickedLabel && pickedLabel.textContent
+              ? createOverlayLabel(path, pickedLabel.textContent.trim())
+              : undefined;
+          if (pickedLabel) {
+            pickedLabel.style.opacity = '0';
+          }
+          const initialLabel = overlayLabel ?? pickedLabel;
+          if (initialLabel) {
+            const pos = getLabelPositionFromPath(path, decodedPoints ?? []);
+            initialLabel.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+          }
+
           edgeInfoList.push({
             id: `edge-${index}`,
             element: path,
             sourceId: endpoints.sourceId,
             targetId: endpoints.targetId,
-            labelElement: pickLabelForPath(path, edgeLabelList, usedLabels),
+            labelElement: overlayLabel ?? pickedLabel,
+            labelText: overlayLabel ? overlayLabel.textContent ?? undefined : pickedLabel?.textContent ?? undefined,
             originalPoints: path.getAttribute('data-points') || '',
+            decodedPoints,
+            relativePoints,
             markerStart: path.getAttribute('marker-start') ?? undefined,
             markerEnd: path.getAttribute('marker-end') ?? undefined,
             cssClasses: path.getAttribute('class') ?? undefined,
@@ -415,6 +471,30 @@
   }
 
   /**
+   * 解码 Mermaid 存在 data-points 上的路径信息
+   */
+  function decodeEdgePoints(encoded: string | null): Point[] | null {
+    if (!encoded || typeof atob !== 'function') return null;
+
+    try {
+      const decoded = atob(encoded);
+      const raw = JSON.parse(decoded);
+      if (Array.isArray(raw)) {
+        return raw
+          .map((p) => ({
+            x: Number(p.x),
+            y: Number(p.y),
+          }))
+          .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+      }
+    } catch (error) {
+      console.warn('[InteractiveCanvas] Failed to decode edge points', error);
+    }
+
+    return null;
+  }
+
+  /**
    * 构建边路径候选列表，带上端点和样式信息
    */
   function buildEdgePathCandidates(paths: SVGPathElement[]): EdgePathCandidate[] {
@@ -422,6 +502,7 @@
       path,
       endpoints: resolveEdgeEndpoints(path),
       originalPoints: path.getAttribute('data-points') || '',
+      decodedPoints: decodeEdgePoints(path.getAttribute('data-points')),
       markerStart: path.getAttribute('marker-start'),
       markerEnd: path.getAttribute('marker-end'),
       cssClasses: path.getAttribute('class'),
@@ -685,6 +766,150 @@
   }
 
   /**
+   * 将绝对坐标的路径点转换为相对（沿连线 + 垂直偏移）的表示
+   */
+  function buildRelativePoints(points: Point[], source: NodeInfo, target: NodeInfo): RelativePoint[] {
+    const dirX = target.initialX - source.initialX;
+    const dirY = target.initialY - source.initialY;
+    const dirLen = Math.hypot(dirX, dirY) || 1;
+    const dirUnit = dirLen === 0 ? { x: 0, y: 0 } : { x: dirX / dirLen, y: dirY / dirLen };
+    const normal = { x: -dirUnit.y, y: dirUnit.x };
+
+    return points.map((p) => {
+      const relX = p.x - source.initialX;
+      const relY = p.y - source.initialY;
+      const along = relX * dirUnit.x + relY * dirUnit.y;
+      const offset = relX * normal.x + relY * normal.y;
+      return {
+        t: along / dirLen,
+        offsetRatio: offset / dirLen,
+      };
+    });
+  }
+
+  /**
+   * 将相对路径点投影到当前节点位置
+   */
+  function projectRelativePoint(
+    relative: RelativePoint,
+    source: NodeInfo,
+    target: NodeInfo
+  ): Point {
+    const dirX = target.x - source.x;
+    const dirY = target.y - source.y;
+    const len = Math.hypot(dirX, dirY) || 1;
+    const dirUnit = len === 0 ? { x: 0, y: 0 } : { x: dirX / len, y: dirY / len };
+    const normal = { x: -dirUnit.y, y: dirUnit.x };
+    const along = relative.t * len;
+    const offset = relative.offsetRatio * len;
+
+    return {
+      x: source.x + along * dirUnit.x + offset * normal.x,
+      y: source.y + along * dirUnit.y + offset * normal.y,
+    };
+  }
+
+  /**
+   * 取得更新后的路径点，优先复用 Mermaid 给出的 data-points 形态
+   */
+  function getUpdatedEdgePoints(edge: EdgeInfo, source: NodeInfo, target: NodeInfo): Point[] {
+    if (edge.relativePoints?.length) {
+      return edge.relativePoints.map((rel) => projectRelativePoint(rel, source, target));
+    }
+
+    if (edge.decodedPoints?.length) {
+      edge.relativePoints = buildRelativePoints(edge.decodedPoints, source, target);
+      return edge.relativePoints.map((rel) => projectRelativePoint(rel, source, target));
+    }
+
+    return calculateEdgePoints(source, target);
+  }
+
+  /**
+   * 通过 Path 的真实长度获取标签中心，保持与曲线一致
+   */
+  function getLabelPositionFromPath(path: SVGPathElement, points: Point[]): Point {
+    try {
+      const length = path.getTotalLength();
+      if (Number.isFinite(length) && length > 0) {
+        const midPoint = path.getPointAtLength(length / 2);
+        return { x: midPoint.x, y: midPoint.y };
+      }
+    } catch (error) {
+      console.warn('[InteractiveCanvas] Failed to compute label position from path', error);
+    }
+
+    if (points.length > 0) {
+      return calculateLabelPosition(points);
+    }
+
+    const box = path.getBBox();
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  }
+
+  /**
+   * 找到应该移动的标签容器（优先 edgeLabel/label）
+   */
+  function getLabelContainer(label: SVGGElement | SVGTextElement | undefined): SVGGElement | SVGTextElement | undefined {
+    if (!label) return undefined;
+    let el: Element | null = label;
+    while (el) {
+      if (
+        el instanceof SVGGElement &&
+        (el.classList.contains('edgeLabel') || el.classList.contains('edge-label') || el.classList.contains('label'))
+      ) {
+        return el as SVGGElement;
+      }
+      el = el.parentElement;
+    }
+    return label;
+  }
+
+  /**
+   * 创建随边移动的覆盖标签，避免依赖 Mermaid 的定位
+   */
+  function createOverlayLabel(path: SVGPathElement, text: string): SVGTextElement | null {
+    const svg = path.ownerSVGElement;
+    if (!svg) return null;
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.textContent = text;
+    label.setAttribute('text-anchor', 'middle');
+    label.setAttribute('dominant-baseline', 'central');
+    label.setAttribute('class', 'interactive-edge-label');
+    label.setAttribute('fill', '#333333');
+    label.setAttribute('font-size', '12px');
+    label.setAttribute('font-family', 'sans-serif');
+    label.style.pointerEvents = 'none';
+
+    // 挂到 SVG 顶层，便于统一 reposition
+    svg.appendChild(label);
+    return label;
+  }
+
+  /**
+   * 通过 data-id 精确获取 Mermaid 生成的标签元素
+   */
+  function findLabelForEdge(edgeId: string, svg: SVGSVGElement): {
+    labelElement?: SVGGElement | SVGTextElement;
+    labelContainer?: SVGGElement | SVGTextElement;
+  } {
+    const labelEl = svg.querySelector(`[data-id="${edgeId}"]`) as
+      | SVGGElement
+      | SVGTextElement
+      | null;
+
+    if (!labelEl) {
+      return {};
+    }
+
+    return {
+      labelElement: labelEl,
+      labelContainer: getLabelContainer(labelEl),
+    };
+  }
+
+  /**
    * 更新与节点相连的边
    */
   function updateConnectedEdges(nodeId: string): void {
@@ -707,8 +932,8 @@
       return;
     }
 
-    // 计算新的路径点
-    const points = calculateEdgePoints(sourceNode, targetNode);
+    // 计算新的路径点，尽可能保持 Mermaid 原有的曲线路径与偏移
+    const points = getUpdatedEdgePoints(edge, sourceNode, targetNode);
 
     // 生成新的路径
     const pathD = generateCurvePath(points);
@@ -744,14 +969,15 @@
     }
 
     // 更新标签位置 - 使用类似 Mermaid 的算法
-    if (edge.labelElement) {
-      const labelPos = calculateLabelPosition(points);
-      edge.labelElement.setAttribute('transform', `translate(${labelPos.x}, ${labelPos.y})`);
+    const labelTarget = edge.labelContainer ?? edge.labelElement;
+    if (!labelTarget) return;
 
-      // 确保标签可见性
-      edge.labelElement.style.display = 'block';
-      edge.labelElement.style.visibility = 'visible';
-    }
+    const labelPos = getLabelPositionFromPath(edge.element, points);
+    labelTarget.setAttribute('transform', `translate(${labelPos.x}, ${labelPos.y})`);
+
+    // 确保标签可见性
+    labelTarget.style.display = 'block';
+    labelTarget.style.visibility = 'visible';
   }
 
   /**
@@ -760,7 +986,7 @@
   function calculateEdgePoints(
     source: NodeInfo,
     target: NodeInfo
-  ): Array<{ x: number; y: number }> {
+  ): Point[] {
     // 计算源和目标的中心点
     const sourceCenter = { x: source.x, y: source.y };
     const targetCenter = { x: target.x, y: target.y };
@@ -828,11 +1054,11 @@
   /**
    * 生成曲线路径
    */
-  function generateCurvePath(points: Array<{ x: number; y: number }>): string {
+  function generateCurvePath(points: Point[]): string {
     if (points.length < 2) return '';
 
     const lineGenerator = d3
-      .line<{ x: number; y: number }>()
+      .line<Point>()
       .x((d) => d.x)
       .y((d) => d.y)
       .curve(d3.curveBasis);
@@ -843,7 +1069,7 @@
   /**
    * 计算两点之间的距离
    */
-  function distance(p1: { x: number; y: number }, p2: { x: number; y: number } | undefined): number {
+  function distance(p1: Point, p2: Point | undefined): number {
     if (!p2) return 0;
     return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
   }
@@ -851,8 +1077,8 @@
   /**
    * 沿着路径计算指定距离处的点
    */
-  function calculatePoint(points: Array<{ x: number; y: number }>, distanceToTraverse: number): { x: number; y: number } {
-    let prevPoint: { x: number; y: number } | undefined = undefined;
+  function calculatePoint(points: Point[], distanceToTraverse: number): Point {
+    let prevPoint: Point | undefined = undefined;
     let remainingDistance = distanceToTraverse;
 
     for (const point of points) {
@@ -879,8 +1105,8 @@
   /**
    * 遍历边到中点
    */
-  function traverseEdge(points: Array<{ x: number; y: number }>): { x: number; y: number } {
-    let prevPoint: { x: number; y: number } | undefined = undefined;
+  function traverseEdge(points: Point[]): Point {
+    let prevPoint: Point | undefined = undefined;
     let totalDistance = 0;
 
     points.forEach((point) => {
@@ -896,7 +1122,7 @@
   /**
    * 计算标签位置 - 基于 Mermaid 的算法
    */
-  function calculateLabelPosition(points: Array<{ x: number; y: number }>): { x: number; y: number } {
+  function calculateLabelPosition(points: Point[]): Point {
     if (points.length === 1) {
       return points[0];
     }
@@ -926,79 +1152,6 @@
     }
 
     onNodeSelect?.(nodeId);
-  }
-
-  /**
-   * 处理边创建模式下的节点点击
-   */
-  function handleNodeClickForEdgeCreation(nodeId: string): void {
-    if (!edgeCreationSource) {
-      // 第一次点击，设置源节点
-      edgeCreationSource = nodeId;
-      // 高亮源节点
-      const nodeInfo = nodeInfoMap.get(nodeId);
-      if (nodeInfo) {
-        nodeInfo.element.classList.add('edge-source');
-      }
-      // 更新光标提示
-      if (containerEl) {
-        containerEl.style.cursor = 'crosshair';
-      }
-    } else if (edgeCreationSource === nodeId) {
-      // 点击同一个节点，取消边创建
-      cancelEdgeCreation();
-    } else {
-      // 第二次点击，创建边
-      onAddEdge?.(edgeCreationSource, nodeId);
-      cancelEdgeCreation();
-    }
-  }
-
-  /**
-   * 取消边创建模式
-   */
-  function cancelEdgeCreation(): void {
-    // 清除源节点高亮
-    if (edgeCreationSource) {
-      const nodeInfo = nodeInfoMap.get(edgeCreationSource);
-      if (nodeInfo) {
-        nodeInfo.element.classList.remove('edge-source');
-      }
-    }
-
-    edgeCreationSource = null;
-
-    // 恢复光标
-    if (containerEl) {
-      containerEl.style.cursor = 'default';
-    }
-  }
-
-  /**
-   * 切换边创建模式
-   */
-  export function toggleEdgeCreation(): void {
-    edgeCreationMode = !edgeCreationMode;
-    if (!edgeCreationMode) {
-      cancelEdgeCreation();
-    }
-  }
-
-  /**
-   * 设置边创建模式
-   */
-  export function setEdgeCreationMode(enabled: boolean): void {
-    edgeCreationMode = enabled;
-    if (!enabled) {
-      cancelEdgeCreation();
-    }
-  }
-
-  /**
-   * 获取当前边创建模式状态
-   */
-  export function getEdgeCreationMode(): boolean {
-    return edgeCreationMode;
   }
 
   // Zoom/Pan - 无限画布模式
@@ -1125,12 +1278,9 @@
       selectedNodeId = null;
     }
 
-    // Escape 取消选择或边创建
+    // Escape 取消选择
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (edgeCreationMode) {
-        cancelEdgeCreation();
-      }
       if (selectedNodeId) {
         selectedNodeId = null;
         onNodeSelect?.(null);
@@ -1297,23 +1447,6 @@
   .svg-container :global(g.node.selected circle) {
     stroke: #1976d2 !important;
     stroke-width: 2px !important;
-  }
-
-  /* 边创建源节点状态 */
-  .svg-container :global(g.node.edge-source .label-container),
-  .svg-container :global(g.node.edge-source rect),
-  .svg-container :global(g.node.edge-source polygon),
-  .svg-container :global(g.node.edge-source circle) {
-    stroke: #4caf50 !important;
-    stroke-width: 3px !important;
-    stroke-dasharray: 5,5 !important;
-    animation: edge-pulse 1s ease-in-out infinite;
-  }
-
-  @keyframes edge-pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.7; }
-    100% { opacity: 1; }
   }
 
   .svg-container :global(.render-error) {

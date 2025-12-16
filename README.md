@@ -90,15 +90,9 @@ const editor = new MerfolkEditor(container: HTMLElement, options?: EditorOptions
 
 #### 节点操作
 
-- `addNode(nodeData: NodeData): void` - 添加节点
 - `removeNode(nodeId: string): void` - 删除节点
 - `setNodePosition(nodeId: string, x: number, y: number): void` - 设置节点位置
 - `getNodePosition(nodeId: string): { x, y } | undefined` - 获取节点位置
-
-#### 边操作
-
-- `addEdge(edgeData: EdgeData): void` - 添加边
-- `removeEdge(edgeId: string): void` - 删除边
 
 #### 视图控制
 
@@ -111,8 +105,6 @@ const editor = new MerfolkEditor(container: HTMLElement, options?: EditorOptions
 
 - `showCodePanel(): void` - 显示代码面板
 - `hideCodePanel(): void` - 隐藏代码面板
-- `toggleEdgeCreationMode(): void` - 切换边创建模式
-- `setEdgeCreationMode(enabled: boolean): void` - 设置边创建模式
 
 #### 位置管理
 
@@ -206,24 +198,38 @@ pnpm install
 ### 开发模式
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 ### 构建
 
 ```bash
 # 构建 Web 应用
-npm run build
+pnpm build
 
 # 构建库文件
-npm run build:lib
+pnpm build:lib
 ```
 
 ### 测试
 
 ```bash
-npm test
+# 单元测试
+pnpm test
+
+# 仅使用 Chromium 的端到端测试（Playwright）
+pnpm test:e2e
 ```
+
+> 已在脚本中使用系统的 `chromium` 可执行文件（通过 `PLAYWRIGHT_CHROMIUM_EXECUTABLE=$(command -v chromium)`），不需要额外参数。确保系统已安装 chromium 即可。
+
+### 清理遗留文件
+
+```bash
+pnpm clean:artifacts
+```
+
+> 删除旧的 Cypress 目录与 Playwright 生成的临时测试输出，保持仓库整洁。
 
 ## 许可证
 

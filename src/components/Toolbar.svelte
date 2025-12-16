@@ -5,11 +5,8 @@
     onFitToView: () => void;
     onZoomIn: () => void;
     onZoomOut: () => void;
-    onAddNode?: () => void;
     onDeleteSelected?: () => void;
-    onAddEdge?: () => void;
     hasSelection?: boolean;
-    edgeCreationMode?: boolean;
   }
 
   let {
@@ -18,11 +15,8 @@
     onFitToView,
     onZoomIn,
     onZoomOut,
-    onAddNode,
     onDeleteSelected,
-    onAddEdge,
     hasSelection = false,
-    edgeCreationMode = false
   }: Props = $props();
 </script>
 
@@ -33,32 +27,6 @@
 
   <!-- 编辑工具 -->
   <div class="toolbar-group">
-    {#if onAddNode}
-      <button class="toolbar-btn" onclick={onAddNode} title="Add Node">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-          <line x1="12" y1="8" x2="12" y2="16"/>
-          <line x1="8" y1="12" x2="16" y2="12"/>
-        </svg>
-        <span>Add</span>
-      </button>
-    {/if}
-
-    {#if onAddEdge}
-      <button
-        class="toolbar-btn"
-        class:active={edgeCreationMode}
-        onclick={onAddEdge}
-        title={edgeCreationMode ? "Click nodes to create edge" : "Add Edge"}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M5 12h14"/>
-          <path d="M12 5l7 7-7 7"/>
-        </svg>
-        <span>Edge</span>
-      </button>
-    {/if}
-
     {#if onDeleteSelected}
       <button
         class="toolbar-btn"
@@ -71,7 +39,7 @@
           <polyline points="3 6 5 6 21 6"/>
           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
         </svg>
-        <span>Delete</span>
+          <span>Delete</span>
       </button>
     {/if}
   </div>

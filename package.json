@@ -19,13 +19,12 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "vite build && npm run build:lib",
+    "build": "vite build && pnpm run build:lib",
     "build:lib": "vite build --config vite.config.lib.ts",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test": "vitest",
-    "cy:open": "cypress open",
-    "cy:run": "cypress run"
+    "test": "vitest run",
+    "test:e2e": "PLAYWRIGHT_CHROMIUM_EXECUTABLE=$(command -v chromium) pnpm exec playwright test"
   },
   "packageManager": "pnpm@10.24.0",
   "devDependencies": {
@@ -35,7 +34,6 @@
     "@testing-library/svelte": "^5.2.9",
     "@tsconfig/svelte": "^5.0.6",
     "@types/d3": "^7.4.3",
-    "cypress": "^15.7.1",
     "jsdom": "^27.3.0",
     "svelte": "^5.45.10",
     "svelte-check": "^4.3.4",
