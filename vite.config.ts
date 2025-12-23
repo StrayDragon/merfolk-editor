@@ -1,16 +1,12 @@
 import { defineConfig } from 'vite';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
+import baseConfig, { pathAliases, sveltePlugin } from './vite.config.base';
 import { resolve } from 'path';
 
 export default defineConfig({
-  plugins: [svelte()],
+  ...baseConfig,
+  plugins: [sveltePlugin()],
   resolve: {
-    alias: {
-      $lib: resolve(__dirname, './src/lib'),
-      $core: resolve(__dirname, './src/core'),
-      $canvas: resolve(__dirname, './src/canvas'),
-      $components: resolve(__dirname, './src/components'),
-    },
+    alias: pathAliases
   },
   build: {
     lib: {

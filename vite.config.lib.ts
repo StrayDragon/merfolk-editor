@@ -1,11 +1,13 @@
 import { defineConfig } from 'vite';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
+import baseConfig, { pathAliases, sveltePlugin } from './vite.config.base';
 import { resolve } from 'path';
 
 export default defineConfig({
-  plugins: [
-    svelte(),
-  ],
+  ...baseConfig,
+  plugins: [sveltePlugin()],
+  resolve: {
+    alias: pathAliases
+  },
   build: {
     lib: {
       entry: resolve(__dirname, 'src/lib/index.ts'),
@@ -32,9 +34,4 @@ export default defineConfig({
     },
     cssCodeSplit: false
   },
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src')
-    }
-  }
 });

@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import mermaid from 'mermaid';
   import * as d3 from 'd3';
   import { MermaidParser } from '../core/parser/MermaidParser';
   import type { FlowEdge } from '../core/model/Edge';
+  import { interactiveCanvasLogger as logger } from '../lib/logger';
+  import { CANVAS_PADDING, MIN_LABEL_DISTANCE, MAX_LABEL_DISTANCE } from '../core/constants';
 
   interface Props {
     code: string;
@@ -90,6 +92,15 @@
   let nodeInfoMap = new Map<string, NodeInfo>();
   let edgeInfoList: EdgeInfo[] = [];
 
+  // Track event listeners for cleanup
+  const cleanupFunctions: (() => void)[] = [];
+
+  // Cleanup all event listeners on component destroy
+  onDestroy(() => {
+    cleanupFunctions.forEach((cleanup) => cleanup());
+    cleanupFunctions.length = 0;
+  });
+
   // Initialize mermaid
   onMount(() => {
     mermaid.initialize({
@@ -104,10 +115,15 @@
     });
   });
 
-  // Re-render when code changes
+  // Re-render when code changes (with debounce)
+  let renderTimeout: ReturnType<typeof setTimeout>;
+
   $effect(() => {
     if (code && containerEl) {
-      renderDiagram(code);
+      clearTimeout(renderTimeout);
+      renderTimeout = setTimeout(() => {
+        renderDiagram(code);
+      }, 150);
     }
   });
 
@@ -190,8 +206,9 @@
         initialY: y,
       });
 
-      // 添加拖拽功能
-      setupNodeDrag(nodeEl, nodeId);
+      // 添加拖拽功能并 register cleanup
+      const cleanupDrag = setupNodeDrag(nodeEl, nodeId);
+      cleanupFunctions.push(cleanupDrag);
 
       // 添加点击选择
       nodeEl.addEventListener('click', (e) => {
@@ -208,7 +225,7 @@
     try {
       model = parser.parse(mermaidCode);
     } catch (e) {
-      console.warn('[InteractiveCanvas] Failed to parse code for edge matching:', e);
+      logger.warn('Failed to parse code for edge matching:', e);
       model = null;
     }
 
@@ -248,7 +265,7 @@
       model.edges.forEach((edge) => {
         const pathCandidate = findPathForEdge(edge, candidates, usedPaths);
         if (!pathCandidate) {
-          console.warn(`[InteractiveCanvas] Could not find path for edge ${edge.id}`);
+          logger.warn(`Could not find path for edge ${edge.id}`);
           return;
         }
 
@@ -473,7 +490,8 @@
       }
 
       return { sourceId, targetId };
-    } catch {
+    } catch (error) {
+      logger.warn('Failed to find edge endpoints by geometry', error);
       return { sourceId: null, targetId: null };
     }
   }
@@ -496,7 +514,7 @@
           .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
       }
     } catch (error) {
-      console.warn('[InteractiveCanvas] Failed to decode edge points', error);
+      logger.warn('Failed to decode edge points', error);
     }
 
     return undefined;
@@ -615,10 +633,10 @@
       let score = 0;
       if (labelText) {
         // 有文本的标签优先，但距离不能太远
-        score = distance < 150 ? 1000 - distance : 0;
+        score = distance < MAX_LABEL_DISTANCE ? 1000 - distance : 0;
       } else {
         // 没有文本的标签，只有在距离很近时才选择
-        score = distance < 50 ? 500 - distance : 0;
+        score = distance < MIN_LABEL_DISTANCE ? 500 - distance : 0;
       }
 
       if (score > 0) {
@@ -640,8 +658,9 @@
 
   /**
    * 设置节点拖拽
+   * Returns a cleanup function
    */
-  function setupNodeDrag(nodeEl: SVGGElement, nodeId: string): void {
+  function setupNodeDrag(nodeEl: SVGGElement, nodeId: string): () => void {
     let isDragging = false;
     let startX = 0;
     let startY = 0;
@@ -672,14 +691,17 @@
     const onMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
 
-      const dx = (e.clientX - startX) / scale;
-      const dy = (e.clientY - startY) / scale;
+      // Use requestAnimationFrame for smoother dragging
+      requestAnimationFrame(() => {
+        const dx = (e.clientX - startX) / scale;
+        const dy = (e.clientY - startY) / scale;
 
-      const newX = nodeStartX + dx;
-      const newY = nodeStartY + dy;
+        const newX = nodeStartX + dx;
+        const newY = nodeStartY + dy;
 
-      // 更新节点位置
-      updateNodePosition(nodeId, newX, newY);
+        // Update node position
+        updateNodePosition(nodeId, newX, newY);
+      });
     };
 
     const onMouseUp = () => {
@@ -695,6 +717,13 @@
     };
 
     nodeEl.addEventListener('mousedown', onMouseDown);
+
+    // Return cleanup function
+    return () => {
+      nodeEl.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
   }
 
   /**
@@ -741,11 +770,10 @@
     }
 
     // 添加边距（确保节点不会贴着边界）
-    const padding = 50;
-    minX -= padding;
-    minY -= padding;
-    maxX += padding;
-    maxY += padding;
+    minX -= CANVAS_PADDING;
+    minY -= CANVAS_PADDING;
+    maxX += CANVAS_PADDING;
+    maxY += CANVAS_PADDING;
 
     return {
       minX,
@@ -844,7 +872,7 @@
         return { x: midPoint.x, y: midPoint.y };
       }
     } catch (error) {
-      console.warn('[InteractiveCanvas] Failed to compute label position from path', error);
+      logger.warn('Failed to compute label position from path', error);
     }
 
     if (points.length > 0) {
@@ -936,7 +964,7 @@
     const targetNode = nodeInfoMap.get(edge.targetId);
 
     if (!sourceNode || !targetNode) {
-      console.warn(`[updateEdgePath] Missing nodes for edge ${edge.id}: source=${edge.sourceId}, target=${edge.targetId}`);
+      logger.warn(`Missing nodes for edge ${edge.id}: source=${edge.sourceId}, target=${edge.targetId}`);
       return;
     }
 
