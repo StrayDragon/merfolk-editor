@@ -1,6 +1,7 @@
 import { MermaidParser } from '../parser/MermaidParser';
 import { MermaidSerializer } from '../serializer/MermaidSerializer';
-import { FlowchartModel } from '../model/FlowchartModel';
+import { FlowchartModel, type FlowchartData } from '../model/FlowchartModel';
+import type { ShapeType, StrokeType, ArrowType } from '../model/types';
 
 /**
  * 节点位置信息
@@ -17,6 +18,16 @@ export interface NodePosition {
 export interface SyncEngineOptions {
   /** 代码变更防抖延迟 (ms) */
   debounceDelay?: number;
+  /** 历史记录最大长度 */
+  maxHistoryLength?: number;
+}
+
+/**
+ * 历史记录项
+ */
+interface HistoryEntry {
+  data: FlowchartData;
+  positions: Record<string, { x: number; y: number }>;
 }
 
 /**
@@ -34,10 +45,14 @@ export class SyncEngine {
   private model: FlowchartModel;
   private nodePositions: Map<string, { x: number; y: number }>;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private options: Required<SyncEngineOptions>;
+  private options: Required<Pick<SyncEngineOptions, 'debounceDelay'>> & { maxHistoryLength: number };
 
   // 回调
   private onCodeChange?: (code: string) => void;
+
+  // 撤销/重做历史
+  private undoStack: HistoryEntry[] = [];
+  private redoStack: HistoryEntry[] = [];
 
   constructor(options: SyncEngineOptions = {}) {
     this.parser = new MermaidParser();
@@ -46,6 +61,7 @@ export class SyncEngine {
     this.nodePositions = new Map();
     this.options = {
       debounceDelay: options.debounceDelay ?? 300,
+      maxHistoryLength: options.maxHistoryLength ?? 50,
     };
   }
 
@@ -94,6 +110,7 @@ export class SyncEngine {
    * 删除节点
    */
   removeNode(nodeId: string): void {
+    this.saveToHistory();
     this.model.removeNode(nodeId);
     this.nodePositions.delete(nodeId);
     this.debouncedSerialize();
@@ -102,11 +119,17 @@ export class SyncEngine {
   /**
    * 添加节点
    */
-  addNode(nodeId: string, text: string, position?: { x: number; y: number }): void {
+  addNode(
+    nodeId: string,
+    text: string,
+    position?: { x: number; y: number },
+    shape: ShapeType = 'rect'
+  ): void {
+    this.saveToHistory();
     this.model.addNode({
       id: nodeId,
       text,
-      shape: 'rect',
+      shape,
       position
     });
     if (position) {
@@ -121,9 +144,80 @@ export class SyncEngine {
   updateNodeText(nodeId: string, text: string): void {
     const node = this.model.getNode(nodeId);
     if (node) {
+      this.saveToHistory();
       node.text = text;
       this.debouncedSerialize();
     }
+  }
+
+  /**
+   * 更新节点形状
+   */
+  updateNodeShape(nodeId: string, shape: ShapeType): void {
+    const node = this.model.getNode(nodeId);
+    if (node) {
+      this.saveToHistory();
+      node.shape = shape;
+      this.debouncedSerialize();
+    }
+  }
+
+  /**
+   * 更新节点（文本和形状）
+   */
+  updateNode(nodeId: string, text: string, shape: ShapeType): void {
+    const node = this.model.getNode(nodeId);
+    if (node) {
+      this.saveToHistory();
+      node.text = text;
+      node.shape = shape;
+      this.debouncedSerialize();
+    }
+  }
+
+  /**
+   * 添加边
+   */
+  addEdge(
+    sourceId: string,
+    targetId: string,
+    text?: string,
+    stroke: StrokeType = 'normal',
+    arrowEnd: ArrowType = 'arrow'
+  ): void {
+    this.saveToHistory();
+    this.model.addEdge({
+      source: sourceId,
+      target: targetId,
+      text,
+      stroke,
+      arrowStart: 'none',
+      arrowEnd,
+    });
+    this.debouncedSerialize();
+  }
+
+  /**
+   * 删除边
+   */
+  removeEdge(edgeId: string): void {
+    this.saveToHistory();
+    this.model.removeEdge(edgeId);
+    this.debouncedSerialize();
+  }
+
+  /**
+   * 获取所有节点信息（用于边添加对话框）
+   */
+  getNodesForEdgeDialog(): { id: string; text: string }[] {
+    return this.model.nodes.map(n => ({ id: n.id, text: n.text }));
+  }
+
+  /**
+   * 获取节点形状
+   */
+  getNodeShape(nodeId: string): ShapeType | undefined {
+    return this.model.getNode(nodeId)?.shape;
   }
 
   /**
@@ -190,6 +284,106 @@ export class SyncEngine {
     }
   }
 
+  // ============ 撤销/重做 ============
+
+  /**
+   * 保存当前状态到历史记录
+   */
+  private saveToHistory(): void {
+    const entry: HistoryEntry = {
+      data: this.model.toData(),
+      positions: this.exportPositions(),
+    };
+
+    this.undoStack.push(entry);
+
+    // 限制历史记录长度
+    if (this.undoStack.length > this.options.maxHistoryLength) {
+      this.undoStack.shift();
+    }
+
+    // 清空重做栈
+    this.redoStack = [];
+  }
+
+  /**
+   * 从历史记录恢复状态
+   */
+  private restoreFromHistory(entry: HistoryEntry): void {
+    this.model = FlowchartModel.fromData(entry.data);
+    this.importPositions(entry.positions);
+
+    // 立即同步代码
+    const code = this.serializer.serialize(this.model);
+    this.onCodeChange?.(code);
+  }
+
+  /**
+   * 撤销
+   */
+  undo(): boolean {
+    if (this.undoStack.length === 0) {
+      return false;
+    }
+
+    // 保存当前状态到重做栈
+    const currentEntry: HistoryEntry = {
+      data: this.model.toData(),
+      positions: this.exportPositions(),
+    };
+    this.redoStack.push(currentEntry);
+
+    // 恢复上一个状态
+    const prevEntry = this.undoStack.pop()!;
+    this.restoreFromHistory(prevEntry);
+
+    return true;
+  }
+
+  /**
+   * 重做
+   */
+  redo(): boolean {
+    if (this.redoStack.length === 0) {
+      return false;
+    }
+
+    // 保存当前状态到撤销栈
+    const currentEntry: HistoryEntry = {
+      data: this.model.toData(),
+      positions: this.exportPositions(),
+    };
+    this.undoStack.push(currentEntry);
+
+    // 恢复下一个状态
+    const nextEntry = this.redoStack.pop()!;
+    this.restoreFromHistory(nextEntry);
+
+    return true;
+  }
+
+  /**
+   * 是否可以撤销
+   */
+  canUndo(): boolean {
+    return this.undoStack.length > 0;
+  }
+
+  /**
+   * 是否可以重做
+   */
+  canRedo(): boolean {
+    return this.redoStack.length > 0;
+  }
+
+  /**
+   * 清除历史记录
+   */
+  clearHistory(): void {
+    this.undoStack = [];
+    this.redoStack = [];
+  }
+
   /**
    * 销毁
    */
@@ -198,5 +392,6 @@ export class SyncEngine {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
+    this.clearHistory();
   }
 }

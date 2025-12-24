@@ -15,6 +15,8 @@
     nodeId: string | null;
   }
 
+  import type { ShapeType } from '$core/model/types';
+
   interface Props {
     code: string;
     /** Error callback (null = no error) */
@@ -23,10 +25,12 @@
     onNodeSelect?: (nodeId: string | null) => void;
     /** 删除节点回调 */
     onDeleteNode?: (nodeId: string) => void;
-    /** 添加节点回调 */
-    onAddNode?: (x: number, y: number) => void;
+    /** 添加节点回调 (支持指定形状) */
+    onAddNode?: (x: number, y: number, shape?: ShapeType) => void;
     /** 编辑节点文本回调 */
     onEditNode?: (nodeId: string) => void;
+    /** 添加边回调 */
+    onAddEdge?: (sourceNodeId: string) => void;
     /** 画布编辑开始回调 */
     onEditStart?: () => void;
     /** 画布编辑结束回调 */
@@ -47,6 +51,7 @@
     onDeleteNode,
     onAddNode,
     onEditNode,
+    onAddEdge,
     onEditStart,
     onEditEnd,
     showGrid = true,
@@ -66,6 +71,14 @@
   let svgContainerEl: HTMLDivElement;
   let renderCounter = 0;
   let selectedNodeId: string | null = $state(null);
+
+  // 多选支持
+  let selectedNodeIds = $state<Set<string>>(new Set());
+
+  // 框选状态
+  let isBoxSelecting = $state(false);
+  let boxSelectStart = $state<{ x: number; y: number } | null>(null);
+  let boxSelectEnd = $state<{ x: number; y: number } | null>(null);
 
   // Parser 实例用于解析代码和获取边信息
   const parser = new MermaidParser();
@@ -238,10 +251,11 @@
       const cleanupDrag = setupNodeDrag(nodeEl, nodeId);
       cleanupFunctions.push(cleanupDrag);
 
-      // 添加点击选择
+      // 添加点击选择（支持 Ctrl/Cmd 多选）
       nodeEl.addEventListener('click', (e) => {
         e.stopPropagation();
-        selectNode(nodeId);
+        const addToSelection = e.ctrlKey || e.metaKey;
+        selectNode(nodeId, addToSelection);
       });
 
       // 添加视觉反馈
@@ -1194,28 +1208,95 @@
   }
 
   /**
-   * 选择节点
+   * 选择节点（支持多选）
    */
-  function selectNode(nodeId: string | null): void {
-    // 移除之前的选中状态
-    if (selectedNodeId) {
-      const prevNode = nodeInfoMap.get(selectedNodeId);
-      if (prevNode) {
-        prevNode.element.classList.remove('selected');
+  function selectNode(nodeId: string | null, addToSelection = false): void {
+    if (addToSelection && nodeId) {
+      // 多选模式：切换节点选中状态
+      if (selectedNodeIds.has(nodeId)) {
+        selectedNodeIds.delete(nodeId);
+        const node = nodeInfoMap.get(nodeId);
+        if (node) {
+          node.element.classList.remove('selected');
+        }
+      } else {
+        selectedNodeIds.add(nodeId);
+        const node = nodeInfoMap.get(nodeId);
+        if (node) {
+          node.element.classList.add('selected');
+        }
+      }
+      // 更新主选中节点
+      selectedNodeId = selectedNodeIds.size > 0 ? Array.from(selectedNodeIds)[0] : null;
+      // 触发新的 Set 引用以更新响应式
+      selectedNodeIds = new Set(selectedNodeIds);
+    } else {
+      // 单选模式：清除所有选中，选中新节点
+      clearAllSelections();
+
+      selectedNodeId = nodeId;
+
+      if (nodeId) {
+        selectedNodeIds.add(nodeId);
+        const node = nodeInfoMap.get(nodeId);
+        if (node) {
+          node.element.classList.add('selected');
+        }
+        selectedNodeIds = new Set(selectedNodeIds);
       }
     }
 
-    selectedNodeId = nodeId;
+    onNodeSelect?.(selectedNodeId);
+  }
 
-    // 添加新的选中状态
-    if (nodeId) {
-      const node = nodeInfoMap.get(nodeId);
+  /**
+   * 清除所有选中状态
+   */
+  function clearAllSelections(): void {
+    for (const id of selectedNodeIds) {
+      const node = nodeInfoMap.get(id);
+      if (node) {
+        node.element.classList.remove('selected');
+      }
+    }
+    selectedNodeIds.clear();
+    selectedNodeIds = new Set();
+  }
+
+  /**
+   * 选中多个节点（用于框选）
+   */
+  function selectMultipleNodes(nodeIds: string[]): void {
+    clearAllSelections();
+    for (const id of nodeIds) {
+      selectedNodeIds.add(id);
+      const node = nodeInfoMap.get(id);
       if (node) {
         node.element.classList.add('selected');
       }
     }
+    selectedNodeId = nodeIds.length > 0 ? nodeIds[0] : null;
+    selectedNodeIds = new Set(selectedNodeIds);
+    onNodeSelect?.(selectedNodeId);
+  }
 
-    onNodeSelect?.(nodeId);
+  /**
+   * 获取框选区域内的节点
+   */
+  function getNodesInSelectionBox(start: { x: number; y: number }, end: { x: number; y: number }): string[] {
+    const minX = Math.min(start.x, end.x);
+    const maxX = Math.max(start.x, end.x);
+    const minY = Math.min(start.y, end.y);
+    const maxY = Math.max(start.y, end.y);
+
+    const result: string[] = [];
+    for (const [id, info] of nodeInfoMap) {
+      // 检查节点中心是否在框选区域内
+      if (info.x >= minX && info.x <= maxX && info.y >= minY && info.y <= maxY) {
+        result.push(id);
+      }
+    }
+    return result;
   }
 
   // Zoom/Pan - 无限画布模式
@@ -1302,11 +1383,24 @@
   }
 
   function handleMouseDown(event: MouseEvent): void {
-    // 只有在空白处才开始平移
+    // 只有在空白处才开始平移或框选
     const target = event.target as Element;
     if (target.closest('g.node')) return;
 
     if (event.button !== 0) return;
+
+    // Shift+拖拽开始框选
+    if (event.shiftKey && containerEl) {
+      isBoxSelecting = true;
+      const rect = containerEl.getBoundingClientRect();
+      const canvasX = (event.clientX - rect.left - translateX) / scale;
+      const canvasY = (event.clientY - rect.top - translateY) / scale;
+      boxSelectStart = { x: canvasX, y: canvasY };
+      boxSelectEnd = { x: canvasX, y: canvasY };
+      containerEl.style.cursor = 'crosshair';
+      return;
+    }
+
     isPanning = true;
     lastX = event.clientX;
     lastY = event.clientY;
@@ -1314,6 +1408,15 @@
   }
 
   function handleMouseMove(event: MouseEvent): void {
+    // 框选模式
+    if (isBoxSelecting && containerEl && boxSelectStart) {
+      const rect = containerEl.getBoundingClientRect();
+      const canvasX = (event.clientX - rect.left - translateX) / scale;
+      const canvasY = (event.clientY - rect.top - translateY) / scale;
+      boxSelectEnd = { x: canvasX, y: canvasY };
+      return;
+    }
+
     if (!isPanning) return;
 
     const dx = event.clientX - lastX;
@@ -1325,6 +1428,17 @@
   }
 
   function handleMouseUp(): void {
+    // 完成框选
+    if (isBoxSelecting && boxSelectStart && boxSelectEnd) {
+      const nodesInBox = getNodesInSelectionBox(boxSelectStart, boxSelectEnd);
+      if (nodesInBox.length > 0) {
+        selectMultipleNodes(nodesInBox);
+      }
+      isBoxSelecting = false;
+      boxSelectStart = null;
+      boxSelectEnd = null;
+    }
+
     isPanning = false;
     if (containerEl) {
       containerEl.style.cursor = 'default';
@@ -1335,20 +1449,40 @@
    * 键盘事件处理
    */
   function handleKeyDown(event: KeyboardEvent): void {
-    // Delete 或 Backspace 删除选中的节点
-    if ((event.key === 'Delete' || event.key === 'Backspace') && selectedNodeId) {
+    // Delete 或 Backspace 删除选中的节点（支持批量删除）
+    if ((event.key === 'Delete' || event.key === 'Backspace') && selectedNodeIds.size > 0) {
       event.preventDefault();
-      onDeleteNode?.(selectedNodeId);
+      // 批量删除所有选中的节点
+      const nodesToDelete = Array.from(selectedNodeIds);
+      for (const nodeId of nodesToDelete) {
+        onDeleteNode?.(nodeId);
+      }
+      clearAllSelections();
       selectedNodeId = null;
+      onNodeSelect?.(null);
     }
 
     // Escape 取消选择
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (selectedNodeId) {
+      if (selectedNodeIds.size > 0) {
+        clearAllSelections();
         selectedNodeId = null;
         onNodeSelect?.(null);
       }
+      // 取消框选
+      if (isBoxSelecting) {
+        isBoxSelecting = false;
+        boxSelectStart = null;
+        boxSelectEnd = null;
+      }
+    }
+
+    // Ctrl/Cmd + A 全选
+    if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
+      event.preventDefault();
+      const allNodeIds = Array.from(nodeInfoMap.keys());
+      selectMultipleNodes(allNodeIds);
     }
   }
 
@@ -1465,26 +1599,58 @@
     if (contextMenu.nodeId) {
       // 节点上的菜单
       return [
-        { id: 'edit', label: '编辑节点', icon: '✏️', shortcut: 'E' },
+        { id: 'edit', label: '编辑节点', shortcut: 'E' },
+        { id: 'add-edge', label: '添加连接' },
         { id: 'separator1', label: '', separator: true },
-        { id: 'delete', label: '删除节点', icon: '🗑️', shortcut: 'Del', danger: true }
+        { id: 'delete', label: '删除节点', shortcut: 'Del', danger: true }
       ];
     } else {
-      // 空白区域的菜单
+      // 空白区域的菜单 - 支持二级菜单选择节点形状
       return [
-        { id: 'add-node', label: '添加节点', icon: '➕' },
+        {
+          id: 'add-node',
+          label: '添加节点',
+          children: [
+            { id: 'add-node-rect', label: '矩形' },
+            { id: 'add-node-rounded', label: '圆角矩形' },
+            { id: 'add-node-stadium', label: '胶囊形' },
+            { id: 'add-node-circle', label: '圆形' },
+            { id: 'add-node-diamond', label: '菱形' },
+            { id: 'add-node-hexagon', label: '六边形' },
+          ]
+        },
         { id: 'separator1', label: '', separator: true },
-        { id: 'fit-view', label: '适应视图', icon: '🔲' },
-        { id: 'reset-zoom', label: '重置缩放', icon: '🔄' }
+        { id: 'fit-view', label: '适应视图' },
+        { id: 'reset-zoom', label: '重置缩放' }
       ];
     }
   }
 
   function handleContextMenuSelect(itemId: string): void {
+    // 解析添加节点的形状
+    const addNodeMatch = itemId.match(/^add-node-(\w+)$/);
+    if (addNodeMatch) {
+      const shape = addNodeMatch[1] as ShapeType;
+      if (containerEl) {
+        const rect = containerEl.getBoundingClientRect();
+        const canvasX = (contextMenu.x - rect.left - translateX) / scale;
+        const canvasY = (contextMenu.y - rect.top - translateY) / scale;
+        onAddNode?.(canvasX, canvasY, shape);
+      }
+      onEditEnd?.();
+      closeContextMenu();
+      return;
+    }
+
     switch (itemId) {
       case 'edit':
         if (contextMenu.nodeId) {
           onEditNode?.(contextMenu.nodeId);
+        }
+        break;
+      case 'add-edge':
+        if (contextMenu.nodeId) {
+          onAddEdge?.(contextMenu.nodeId);
         }
         break;
       case 'delete':
@@ -1496,12 +1662,12 @@
         }
         break;
       case 'add-node':
-        // 计算画布坐标
+        // 默认添加矩形节点
         if (containerEl) {
           const rect = containerEl.getBoundingClientRect();
           const canvasX = (contextMenu.x - rect.left - translateX) / scale;
           const canvasY = (contextMenu.y - rect.top - translateY) / scale;
-          onAddNode?.(canvasX, canvasY);
+          onAddNode?.(canvasX, canvasY, 'rect');
         }
         break;
       case 'fit-view':
@@ -1539,6 +1705,25 @@
 
   <!-- 缩放指示器 -->
   <div class="zoom-indicator">{Math.round(scale * 100)}%</div>
+
+  <!-- 多选提示 -->
+  {#if selectedNodeIds.size > 1}
+    <div class="multi-select-indicator">
+      已选中 {selectedNodeIds.size} 个节点
+    </div>
+  {/if}
+
+  <!-- 框选矩形 -->
+  {#if isBoxSelecting && boxSelectStart && boxSelectEnd}
+    {@const left = Math.min(boxSelectStart.x, boxSelectEnd.x) * scale + translateX}
+    {@const top = Math.min(boxSelectStart.y, boxSelectEnd.y) * scale + translateY}
+    {@const width = Math.abs(boxSelectEnd.x - boxSelectStart.x) * scale}
+    {@const height = Math.abs(boxSelectEnd.y - boxSelectStart.y) * scale}
+    <div
+      class="selection-box"
+      style="left: {left}px; top: {top}px; width: {width}px; height: {height}px;"
+    ></div>
+  {/if}
 </div>
 
 <!-- 右键菜单 -->
@@ -1598,6 +1783,36 @@
     border-radius: 4px;
     pointer-events: none;
     user-select: none;
+  }
+
+  /* 多选指示器 */
+  .multi-select-indicator {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    padding: 6px 12px;
+    background: #1976d2;
+    color: white;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 4px;
+    pointer-events: none;
+    user-select: none;
+    animation: fadeIn 0.2s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* 框选矩形 */
+  .selection-box {
+    position: absolute;
+    border: 2px dashed #1976d2;
+    background: rgba(25, 118, 210, 0.1);
+    pointer-events: none;
+    z-index: 100;
   }
 
   /* 节点悬停效果 */

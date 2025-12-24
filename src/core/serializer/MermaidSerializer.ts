@@ -140,14 +140,45 @@ export class MermaidSerializer {
    */
   private serializeNode(node: FlowNode): string {
     const [start, end] = SHAPE_SYNTAX[node.shape] || SHAPE_SYNTAX.rect;
-    const text = this.escapeText(node.text);
 
     // If text equals id and shape is rect, just output id
-    if (text === node.id && node.shape === 'rect') {
+    if (node.text === node.id && node.shape === 'rect') {
       return node.id;
     }
 
+    // Check if text needs quoting (contains special characters that might conflict with Mermaid syntax)
+    const text = this.formatNodeText(node.text, node.shape);
+
     return `${node.id}${start}${text}${end}`;
+  }
+
+  /**
+   * Format node text for Mermaid syntax
+   * Uses backtick syntax for special characters (Mermaid's markdown string)
+   */
+  private formatNodeText(text: string, shape: ShapeType): string {
+    // Characters that might conflict with Mermaid syntax
+    const specialChars = /[\[\]{}()<>|\\\/\n\r"#]/;
+
+    // Get the shape delimiters to check for conflicts
+    const [start, end] = SHAPE_SYNTAX[shape] || SHAPE_SYNTAX.rect;
+
+    // Check if text contains any delimiter characters or special chars
+    const needsEscaping = specialChars.test(text) ||
+                          text.includes(start) ||
+                          text.includes(end) ||
+                          text.includes('-->') ||
+                          text.includes('---') ||
+                          text.includes('`');
+
+    if (needsEscaping) {
+      // Use Mermaid's markdown string syntax with backticks
+      // Escape any backticks in the text
+      const escaped = text.replace(/`/g, '#96;');
+      return `"\`${escaped}\`"`;
+    }
+
+    return text;
   }
 
   /**
@@ -157,7 +188,24 @@ export class MermaidSerializer {
     if (subGraph.title === subGraph.id) {
       return `subgraph ${subGraph.id}`;
     }
-    return `subgraph ${subGraph.id}[${this.escapeText(subGraph.title)}]`;
+    // Use quotes for subgraph titles with special characters
+    const title = this.formatSubgraphTitle(subGraph.title);
+    return `subgraph ${subGraph.id}[${title}]`;
+  }
+
+  /**
+   * Format subgraph title for Mermaid syntax
+   */
+  private formatSubgraphTitle(title: string): string {
+    const specialChars = /[\[\]{}()<>|\\\/\n\r"#`]/;
+
+    if (specialChars.test(title)) {
+      // Use Mermaid's markdown string syntax with backticks
+      const escaped = title.replace(/`/g, '#96;');
+      return `"\`${escaped}\`"`;
+    }
+
+    return title;
   }
 
   /**
@@ -221,24 +269,30 @@ export class MermaidSerializer {
       }
     }
 
-    // Add text label using pipe syntax: -->|text|
+    // Add text label using pipe syntax: -->|text| or -- text -->
     if (text) {
-      // Insert text before the last character(s) that form the arrow
-      // For -->, insert before >: -->|text|
-      // For ===>, insert before >: ==>|text|
-      if (baseOp.endsWith('>')) {
-        return baseOp.slice(0, -1) + `|${text}|>`;
-      } else if (baseOp.endsWith('o')) {
-        return baseOp.slice(0, -1) + `|${text}|o`;
-      } else if (baseOp.endsWith('x')) {
-        return baseOp.slice(0, -1) + `|${text}|x`;
-      } else {
-        // No arrow end, append text
-        return baseOp + `|${text}|`;
-      }
+      // Escape special characters in edge text
+      const escapedText = this.formatEdgeText(text);
+
+      // Mermaid edge label syntax: ARROW|text| (pipe after arrow, before target)
+      // Examples: -->|text|, ==>|text|, -.->|text|, ---||text|
+      return `${baseOp}|${escapedText}|`;
     }
 
     return baseOp;
+  }
+
+  /**
+   * Format edge text for Mermaid syntax
+   * Edge labels use pipe delimiters, so we need to escape pipes
+   */
+  private formatEdgeText(text: string): string {
+    // Escape pipe characters and other problematic chars
+    return text
+      .replace(/\|/g, '#124;')  // pipe
+      .replace(/"/g, '#quot;')   // double quote
+      .replace(/\n/g, ' ')       // newline
+      .replace(/\r/g, '');       // carriage return
   }
 
   /**
@@ -326,11 +380,4 @@ export class MermaidSerializer {
     return lines;
   }
 
-  /**
-   * Escape special characters in text
-   */
-  private escapeText(text: string): string {
-    // Escape quotes and special characters
-    return text.replace(/"/g, '\\"');
-  }
 }

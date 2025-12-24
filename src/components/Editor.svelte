@@ -3,7 +3,10 @@
   import InteractiveCanvas from './InteractiveCanvas.svelte';
   import CodePanel from './CodePanel.svelte';
   import Toolbar from './Toolbar.svelte';
+  import NodeEditDialog from './NodeEditDialog.svelte';
+  import EdgeAddDialog from './EdgeAddDialog.svelte';
   import { SyncEngine } from '../core/sync/SyncEngine';
+  import type { ShapeType, StrokeType, ArrowType } from '$core/model/types';
 
   interface Props {
     initialCode?: string;
@@ -24,6 +27,19 @@
   // 画布编辑模式状态
   let isCanvasEditing = $state(false);
   let syncTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // 对话框状态
+  let editDialogState = $state<{
+    visible: boolean;
+    nodeId: string;
+    text: string;
+    shape: ShapeType;
+  } | null>(null);
+
+  let edgeDialogState = $state<{
+    visible: boolean;
+    sourceNodeId: string;
+  } | null>(null);
 
   // 同步引擎
   const syncEngine = new SyncEngine({ debounceDelay: 300 });
@@ -48,6 +64,9 @@
         isSyncingFromCanvas = false;
       }, 0);
     });
+
+    // 全局键盘事件监听
+    document.addEventListener('keydown', handleGlobalKeyDown);
   });
 
   onDestroy(() => {
@@ -55,7 +74,33 @@
     if (syncTimer) {
       clearTimeout(syncTimer);
     }
+    document.removeEventListener('keydown', handleGlobalKeyDown);
   });
+
+  /**
+   * 全局键盘事件处理
+   */
+  function handleGlobalKeyDown(e: KeyboardEvent): void {
+    // 如果焦点在输入框或编辑器中，不处理快捷键
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      return;
+    }
+
+    // Ctrl+Z / Cmd+Z: 撤销
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      handleUndo();
+      return;
+    }
+
+    // Ctrl+Y / Cmd+Shift+Z: 重做
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+      e.preventDefault();
+      handleRedo();
+      return;
+    }
+  }
 
   /**
    * Handle code changes from editor
@@ -132,6 +177,20 @@
   }
 
   /**
+   * 撤销
+   */
+  function handleUndo(): void {
+    syncEngine.undo();
+  }
+
+  /**
+   * 重做
+   */
+  function handleRedo(): void {
+    syncEngine.redo();
+  }
+
+  /**
    * 删除节点
    */
   function handleDeleteNode(nodeId: string): void {
@@ -148,11 +207,13 @@
   /**
    * 添加节点（从画布右键菜单触发）
    */
-  function handleAddNode(x: number, y: number): void {
+  function handleAddNode(x: number, y: number, shape: ShapeType = 'rect'): void {
     try {
       // 生成唯一节点 ID
       const nodeId = `node_${Date.now()}`;
-      syncEngine.addNode(nodeId, `New Node`, { x, y });
+      syncEngine.addNode(nodeId, `新节点`, { x, y }, shape);
+      // 选中新节点
+      selectedNodeId = nodeId;
     } catch (error) {
       console.error('[Editor] Failed to add node:', error);
     }
@@ -162,16 +223,70 @@
    * 编辑节点（打开节点编辑对话框）
    */
   function handleEditNode(nodeId: string): void {
-    // TODO: 实现节点编辑对话框
-    console.log('[Editor] Edit node:', nodeId);
-    const newText = prompt('输入新的节点文本:');
-    if (newText !== null && newText.trim()) {
-      try {
-        syncEngine.updateNodeText(nodeId, newText.trim());
-      } catch (error) {
-        console.error('[Editor] Failed to update node text:', error);
-      }
+    const model = syncEngine.getModel();
+    const node = model.getNode(nodeId);
+    if (node) {
+      editDialogState = {
+        visible: true,
+        nodeId,
+        text: node.text,
+        shape: node.shape,
+      };
     }
+  }
+
+  /**
+   * 确认编辑节点
+   */
+  function handleEditNodeConfirm(nodeId: string, text: string, shape: ShapeType): void {
+    try {
+      syncEngine.updateNode(nodeId, text, shape);
+    } catch (error) {
+      console.error('[Editor] Failed to update node:', error);
+    }
+    editDialogState = null;
+  }
+
+  /**
+   * 取消编辑节点
+   */
+  function handleEditNodeCancel(): void {
+    editDialogState = null;
+  }
+
+  /**
+   * 添加边（打开边添加对话框）
+   */
+  function handleAddEdge(sourceNodeId: string): void {
+    edgeDialogState = {
+      visible: true,
+      sourceNodeId,
+    };
+  }
+
+  /**
+   * 确认添加边
+   */
+  function handleAddEdgeConfirm(
+    sourceId: string,
+    targetId: string,
+    text: string,
+    stroke: StrokeType,
+    arrowType: ArrowType
+  ): void {
+    try {
+      syncEngine.addEdge(sourceId, targetId, text || undefined, stroke, arrowType);
+    } catch (error) {
+      console.error('[Editor] Failed to add edge:', error);
+    }
+    edgeDialogState = null;
+  }
+
+  /**
+   * 取消添加边
+   */
+  function handleAddEdgeCancel(): void {
+    edgeDialogState = null;
   }
 
   /**
@@ -211,6 +326,10 @@
     onFitToView={fitToView}
     onZoomIn={zoomIn}
     onZoomOut={zoomOut}
+    onUndo={handleUndo}
+    onRedo={handleRedo}
+    canUndo={syncEngine.canUndo()}
+    canRedo={syncEngine.canRedo()}
   />
 
   <div class="editor-content">
@@ -224,6 +343,7 @@
         onDeleteNode={handleDeleteNode}
         onAddNode={handleAddNode}
         onEditNode={handleEditNode}
+        onAddEdge={handleAddEdge}
         onEditStart={handleCanvasEditStart}
         onEditEnd={handleCanvasEditEnd}
       />
@@ -250,6 +370,27 @@
     {/if}
   </div>
 </div>
+
+<!-- 节点编辑对话框 -->
+{#if editDialogState?.visible}
+  <NodeEditDialog
+    nodeId={editDialogState.nodeId}
+    initialText={editDialogState.text}
+    initialShape={editDialogState.shape}
+    onConfirm={handleEditNodeConfirm}
+    onCancel={handleEditNodeCancel}
+  />
+{/if}
+
+<!-- 边添加对话框 -->
+{#if edgeDialogState?.visible}
+  <EdgeAddDialog
+    sourceNodeId={edgeDialogState.sourceNodeId}
+    nodes={syncEngine.getNodesForEdgeDialog()}
+    onConfirm={handleAddEdgeConfirm}
+    onCancel={handleAddEdgeCancel}
+  />
+{/if}
 
 <style>
   .editor {

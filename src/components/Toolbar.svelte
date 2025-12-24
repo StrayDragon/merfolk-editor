@@ -5,6 +5,10 @@
     onFitToView: () => void;
     onZoomIn: () => void;
     onZoomOut: () => void;
+    onUndo?: () => void;
+    onRedo?: () => void;
+    canUndo?: boolean;
+    canRedo?: boolean;
   }
 
   let {
@@ -13,6 +17,10 @@
     onFitToView,
     onZoomIn,
     onZoomOut,
+    onUndo,
+    onRedo,
+    canUndo = false,
+    canRedo = false,
   }: Props = $props();
 </script>
 
@@ -21,9 +29,38 @@
     <span class="toolbar-title">Merfolk Editor</span>
   </div>
 
+  <!-- 编辑工具 -->
+  {#if onUndo || onRedo}
+    <div class="toolbar-group">
+      <button
+        class="toolbar-btn"
+        onclick={onUndo}
+        title="撤销 (Ctrl+Z)"
+        disabled={!canUndo}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 7v6h6"/>
+          <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+        </svg>
+      </button>
+
+      <button
+        class="toolbar-btn"
+        onclick={onRedo}
+        title="重做 (Ctrl+Y)"
+        disabled={!canRedo}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 7v6h-6"/>
+          <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/>
+        </svg>
+      </button>
+    </div>
+  {/if}
+
   <!-- 视图工具 -->
   <div class="toolbar-group">
-    <button class="toolbar-btn" onclick={onZoomOut} title="Zoom Out">
+    <button class="toolbar-btn" onclick={onZoomOut} title="缩小">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="11" cy="11" r="8"/>
         <line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -31,7 +68,7 @@
       </svg>
     </button>
 
-    <button class="toolbar-btn" onclick={onZoomIn} title="Zoom In">
+    <button class="toolbar-btn" onclick={onZoomIn} title="放大">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="11" cy="11" r="8"/>
         <line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -40,7 +77,7 @@
       </svg>
     </button>
 
-    <button class="toolbar-btn" onclick={onFitToView} title="Fit to View">
+    <button class="toolbar-btn" onclick={onFitToView} title="适应视图">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
       </svg>
@@ -52,13 +89,13 @@
       class="toolbar-btn"
       class:active={showCode}
       onclick={onToggleCode}
-      title={showCode ? 'Hide Code' : 'Show Code'}
+      title={showCode ? '隐藏代码' : '显示代码'}
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="16 18 22 12 16 6"/>
         <polyline points="8 6 2 12 8 18"/>
       </svg>
-      <span>Code</span>
+      <span>代码</span>
     </button>
   </div>
 </div>
@@ -100,7 +137,7 @@
     transition: all 0.15s ease;
   }
 
-  .toolbar-btn:hover {
+  .toolbar-btn:hover:not(:disabled) {
     background: #f5f5f5;
     border-color: #cccccc;
     color: #333333;
@@ -113,7 +150,7 @@
   }
 
   .toolbar-btn:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
     pointer-events: none;
   }

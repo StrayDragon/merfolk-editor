@@ -71,16 +71,16 @@ const EDGE_PATTERNS: Array<{
   { pattern: /^--\|(.+?)\|-->$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'arrow', hasText: true },
   { pattern: /^--(.+?)-->$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'arrow', hasText: true },
 
-  // Normal lines without text
-  { pattern: /^<-->$/, stroke: 'normal', arrowStart: 'arrow', arrowEnd: 'arrow', hasText: false },
-  { pattern: /^-->$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'arrow', hasText: false },
-  { pattern: /^---?$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'none', hasText: false },
-
-  // Circle and cross arrows
+  // Circle and cross arrows (must come before ---? to avoid premature matching)
   { pattern: /^--o$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'circle', hasText: false },
   { pattern: /^o--o$/, stroke: 'normal', arrowStart: 'circle', arrowEnd: 'circle', hasText: false },
   { pattern: /^--x$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'cross', hasText: false },
   { pattern: /^x--x$/, stroke: 'normal', arrowStart: 'cross', arrowEnd: 'cross', hasText: false },
+
+  // Normal lines without text
+  { pattern: /^<-->$/, stroke: 'normal', arrowStart: 'arrow', arrowEnd: 'arrow', hasText: false },
+  { pattern: /^-->$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'arrow', hasText: false },
+  { pattern: /^---?$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'none', hasText: false },
 ];
 
 /**
@@ -343,7 +343,8 @@ export class MermaidParser {
 
     // Regex to match edge operators with optional |text| label
     // Matches: -->, -->|text|, ==>, ==>|text|, -.->, -.->|text|, etc.
-    const edgeRegex = /(<==?>|<==>|==?>|===?|<-\.->|-\.->|-\.-?|<-->|-->|---?|--o|o--o|--x|x--x)(\|[^|]+\|)?/g;
+    // Note: Order matters! --o, --x, o--o, x--x must come before ---? to avoid premature matching
+    const edgeRegex = /(<==?>|<==>|==?>|===?|<-\.->|-\.->|-\.-?|<-->|-->|o--o|x--x|--o|--x|---?)(\|[^|]+\|)?/g;
 
     let lastIndex = 0;
     let match;

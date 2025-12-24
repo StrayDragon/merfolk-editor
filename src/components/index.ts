@@ -6,3 +6,5 @@ export { default as InteractiveCanvas } from './InteractiveCanvas.svelte';
 export { default as CodePanel } from './CodePanel.svelte';
 export { default as Toolbar } from './Toolbar.svelte';
 export { default as ContextMenu, type MenuItem } from './ContextMenu.svelte';
+export { default as NodeEditDialog } from './NodeEditDialog.svelte';
+export { default as EdgeAddDialog } from './EdgeAddDialog.svelte';
