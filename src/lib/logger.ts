@@ -5,8 +5,6 @@
 
 const LOG_PREFIX = '[MerfolkEditor]';
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-
 interface Logger {
   debug: (...args: unknown[]) => void;
   info: (...args: unknown[]) => void;

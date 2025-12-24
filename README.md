@@ -2,8 +2,6 @@
 
 一个支持双向同步的 Mermaid 流程图可视化编辑器。通过拖拽节点编辑图形，代码自动更新，也可以在代码中修改，图形实时同步。
 
-[MermaidChart:./docs/plan/architecture.mmd@overview]
-
 ## 特性
 
 - ✨ **无限画布** - 支持平移和缩放，画布大小不受限制
@@ -138,36 +136,87 @@ interface EdgeData {
 }
 ```
 
-## VSCode 扩展示例
+## VSCode 扩展集成
 
-Merfolk Editor 可以轻松集成到 VSCode 扩展中：
+Merfolk Editor 设计为可嵌入到 VSCode Webview 中。以下是集成思路：
 
-```javascript
-// VSCode 扩展集成示例
-const { MerfolkEditor } = require('merfolk-editor');
+### 基本架构
 
-const panel = vscode.window.createWebviewPanel(
-  'mermaidPreview',
-  'Mermaid Preview',
-  vscode.ViewColumn.Two
-);
-
-// 初始化编辑器
-panel.webview.html = `
-  <div id="editor"></div>
-  <script>
-    import('/node_modules/merfolk-editor/dist/lib/index.js').then(({ default: MerfolkEditor }) => {
-      const editor = new MerfolkEditor(document.getElementById('editor'), {
-        onCodeChange: (code) => {
-          // 同步回 VSCode 文档
-        }
-      });
-    });
-  </script>
-`;
+```
+VSCode 扩展
+├── extension.ts          # 扩展入口
+├── webview/
+│   ├── index.html        # Webview HTML
+│   └── main.js           # 打包后的编辑器代码
+└── package.json
 ```
 
-完整示例请参考 `examples/vscode-extension.js`
+### 集成要点
+
+1. **资源处理**：使用 `webview.asWebviewUri()` 转换本地资源路径
+2. **CSP 配置**：配置 Content Security Policy 允许脚本执行
+3. **消息通信**：通过 `postMessage` 与扩展主进程通信
+
+```typescript
+// extension.ts 示例
+import * as vscode from 'vscode';
+
+export function activate(context: vscode.ExtensionContext) {
+  const panel = vscode.window.createWebviewPanel(
+    'merfolkEditor',
+    'Mermaid Editor',
+    vscode.ViewColumn.Two,
+    {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.joinPath(context.extensionUri, 'webview')
+      ]
+    }
+  );
+
+  // 获取 webview 资源 URI
+  const scriptUri = panel.webview.asWebviewUri(
+    vscode.Uri.joinPath(context.extensionUri, 'webview', 'main.js')
+  );
+  const styleUri = panel.webview.asWebviewUri(
+    vscode.Uri.joinPath(context.extensionUri, 'webview', 'style.css')
+  );
+
+  panel.webview.html = getWebviewContent(scriptUri, styleUri);
+
+  // 处理来自 webview 的消息
+  panel.webview.onDidReceiveMessage(message => {
+    if (message.type === 'codeChange') {
+      // 同步代码到 VSCode 文档
+    }
+  });
+}
+
+function getWebviewContent(scriptUri: vscode.Uri, styleUri: vscode.Uri) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src ${scriptUri}; style-src ${styleUri} 'unsafe-inline';">
+  <link href="${styleUri}" rel="stylesheet">
+</head>
+<body>
+  <div id="editor"></div>
+  <script src="${scriptUri}"></script>
+</body>
+</html>`;
+}
+```
+
+### 打包建议
+
+为 VSCode 扩展构建时，建议：
+- 将 merfolk-editor 及其依赖打包成单文件
+- 使用 esbuild 或 rollup 进行打包
+- 确保 mermaid、d3 等依赖被正确内联
+
+> ⚠️ 完整的 VSCode 扩展示例正在开发中
 
 ## 技术架构
 

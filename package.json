@@ -3,20 +3,37 @@
   "version": "0.1.0",
   "description": "A visual Mermaid flowchart editor with bidirectional sync",
   "type": "module",
-  "main": "dist/lib/index.js",
+  "main": "dist/lib/index.es.js",
+  "module": "dist/lib/index.es.js",
   "types": "dist/lib/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/lib/index.d.ts",
-      "import": "./dist/lib/index.js"
+      "import": "./dist/lib/index.es.js"
     },
-    "./style": "./dist/style.css"
+    "./style": "./dist/merfolk-editor.css"
   },
   "files": [
     "dist",
     "README.md",
     "LICENSE"
   ],
+  "peerDependencies": {
+    "mermaid": ">=10.0.0",
+    "d3": ">=7.0.0",
+    "@dagrejs/dagre": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "mermaid": {
+      "optional": false
+    },
+    "d3": {
+      "optional": false
+    },
+    "@dagrejs/dagre": {
+      "optional": false
+    }
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build && pnpm run build:lib",
@@ -39,6 +56,7 @@
     "svelte-check": "^4.3.4",
     "typescript": "^5.9.3",
     "vite": "^7.2.7",
+    "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.0.15"
   },
   "dependencies": {

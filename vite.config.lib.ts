@@ -1,10 +1,20 @@
 import { defineConfig } from 'vite';
 import baseConfig, { pathAliases, sveltePlugin } from './vite.config.base';
 import { resolve } from 'path';
+import dts from 'vite-plugin-dts';
 
 export default defineConfig({
   ...baseConfig,
-  plugins: [sveltePlugin()],
+  plugins: [
+    sveltePlugin(),
+    dts({
+      include: ['src/lib/**/*.ts', 'src/core/**/*.ts'],
+      exclude: ['**/*.test.ts', '**/*.spec.ts'],
+      outDir: 'dist/lib',
+      rollupTypes: true,
+      insertTypesEntry: true,
+    }),
+  ],
   resolve: {
     alias: pathAliases
   },
@@ -19,6 +29,7 @@ export default defineConfig({
       external: [
         'svelte',
         'svelte/internal',
+        'svelte/store',
         'mermaid',
         'd3',
         '@dagrejs/dagre'
