@@ -29,10 +29,16 @@
     onCancel
   }: Props = $props();
 
-  let text = $state(initialText);
-  let shape = $state<ShapeType>(initialShape);
+  let text = $state('');
+  let shape = $state<ShapeType>('rect');
   let dialogEl: HTMLDivElement;
   let inputEl: HTMLInputElement;
+
+  // 当 props 变化时更新内部状态
+  $effect(() => {
+    text = initialText;
+    shape = initialShape;
+  });
 
   // 节点形状选项
   const shapeOptions: { value: ShapeType; label: string; icon: string }[] = [
