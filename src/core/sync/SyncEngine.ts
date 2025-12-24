@@ -100,6 +100,33 @@ export class SyncEngine {
   }
 
   /**
+   * 添加节点
+   */
+  addNode(nodeId: string, text: string, position?: { x: number; y: number }): void {
+    this.model.addNode({
+      id: nodeId,
+      text,
+      shape: 'rect',
+      position
+    });
+    if (position) {
+      this.nodePositions.set(nodeId, position);
+    }
+    this.debouncedSerialize();
+  }
+
+  /**
+   * 更新节点文本
+   */
+  updateNodeText(nodeId: string, text: string): void {
+    const node = this.model.getNode(nodeId);
+    if (node) {
+      node.text = text;
+      this.debouncedSerialize();
+    }
+  }
+
+  /**
    * 获取当前模型
    */
   getModel(): FlowchartModel {

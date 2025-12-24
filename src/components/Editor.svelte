@@ -9,15 +9,21 @@
     initialCode?: string;
     /** 代码变更回调（外部使用） */
     onCodeChange?: (code: string) => void;
+    /** 画布编辑后延迟同步的时间（ms） */
+    syncDelay?: number;
   }
 
-  let { initialCode = '', onCodeChange }: Props = $props();
+  let { initialCode = '', onCodeChange, syncDelay = 1500 }: Props = $props();
 
   // State
   let code = $state('');
   let parseError = $state<string | null>(null);
   let showCode = $state(true);
   let selectedNodeId = $state<string | null>(null);
+
+  // 画布编辑模式状态
+  let isCanvasEditing = $state(false);
+  let syncTimer: ReturnType<typeof setTimeout> | null = null;
 
   // 同步引擎
   const syncEngine = new SyncEngine({ debounceDelay: 300 });
@@ -46,6 +52,9 @@
 
   onDestroy(() => {
     syncEngine.destroy();
+    if (syncTimer) {
+      clearTimeout(syncTimer);
+    }
   });
 
   /**
@@ -135,6 +144,64 @@
       console.error('[Editor] Failed to delete node:', error);
     }
   }
+
+  /**
+   * 添加节点（从画布右键菜单触发）
+   */
+  function handleAddNode(x: number, y: number): void {
+    try {
+      // 生成唯一节点 ID
+      const nodeId = `node_${Date.now()}`;
+      syncEngine.addNode(nodeId, `New Node`, { x, y });
+    } catch (error) {
+      console.error('[Editor] Failed to add node:', error);
+    }
+  }
+
+  /**
+   * 编辑节点（打开节点编辑对话框）
+   */
+  function handleEditNode(nodeId: string): void {
+    // TODO: 实现节点编辑对话框
+    console.log('[Editor] Edit node:', nodeId);
+    const newText = prompt('输入新的节点文本:');
+    if (newText !== null && newText.trim()) {
+      try {
+        syncEngine.updateNodeText(nodeId, newText.trim());
+      } catch (error) {
+        console.error('[Editor] Failed to update node text:', error);
+      }
+    }
+  }
+
+  /**
+   * 画布编辑开始
+   * 进入编辑模式，遮盖代码区域
+   */
+  function handleCanvasEditStart(): void {
+    isCanvasEditing = true;
+    // 清除之前的定时器
+    if (syncTimer) {
+      clearTimeout(syncTimer);
+      syncTimer = null;
+    }
+  }
+
+  /**
+   * 画布编辑结束
+   * 延迟同步代码
+   */
+  function handleCanvasEditEnd(): void {
+    // 设置延迟同步定时器
+    if (syncTimer) {
+      clearTimeout(syncTimer);
+    }
+
+    syncTimer = setTimeout(() => {
+      isCanvasEditing = false;
+      syncTimer = null;
+    }, syncDelay);
+  }
 </script>
 
 <div class="editor">
@@ -155,16 +222,30 @@
         onNodeSelect={handleNodeSelect}
         onNodeMove={handleNodeMove}
         onDeleteNode={handleDeleteNode}
+        onAddNode={handleAddNode}
+        onEditNode={handleEditNode}
+        onEditStart={handleCanvasEditStart}
+        onEditEnd={handleCanvasEditEnd}
       />
     </div>
 
     {#if showCode}
-      <div class="code-container">
+      <div class="code-container" class:editing-overlay={isCanvasEditing}>
         <CodePanel
           {code}
           error={parseError}
           onCodeChange={handleCodeChange}
         />
+        <!-- 编辑遮盖层 -->
+        {#if isCanvasEditing}
+          <div class="code-overlay">
+            <div class="overlay-content">
+              <div class="overlay-icon">🎨</div>
+              <div class="overlay-text">正在编辑画布...</div>
+              <div class="overlay-hint">编辑完成后将自动同步代码</div>
+            </div>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -197,6 +278,7 @@
   }
 
   .code-container {
+    position: relative;
     width: 400px;
     min-width: 300px;
     max-width: 600px;
@@ -204,4 +286,50 @@
     flex-direction: column;
   }
 
-  </style>
+  .code-container.editing-overlay {
+    pointer-events: none;
+  }
+
+  /* 代码区遮盖层 */
+  .code-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(30, 30, 30, 0.85);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+
+  .overlay-content {
+    text-align: center;
+    color: #ffffff;
+    padding: 24px;
+  }
+
+  .overlay-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .overlay-text {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .overlay-hint {
+    font-size: 12px;
+    color: #888888;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
+  }
+</style>

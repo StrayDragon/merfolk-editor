@@ -5,3 +5,4 @@ export { default as MermaidCanvas } from './MermaidCanvas.svelte';
 export { default as InteractiveCanvas } from './InteractiveCanvas.svelte';
 export { default as CodePanel } from './CodePanel.svelte';
 export { default as Toolbar } from './Toolbar.svelte';
+export { default as ContextMenu, type MenuItem } from './ContextMenu.svelte';

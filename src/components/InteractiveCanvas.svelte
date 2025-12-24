@@ -6,6 +6,14 @@
   import type { FlowEdge } from '../core/model/Edge';
   import { interactiveCanvasLogger as logger } from '../lib/logger';
   import { CANVAS_PADDING, MIN_LABEL_DISTANCE, MAX_LABEL_DISTANCE } from '../core/constants';
+  import ContextMenu, { type MenuItem } from './ContextMenu.svelte';
+
+  interface ContextMenuState {
+    visible: boolean;
+    x: number;
+    y: number;
+    nodeId: string | null;
+  }
 
   interface Props {
     code: string;
@@ -15,6 +23,14 @@
     onNodeSelect?: (nodeId: string | null) => void;
     /** 删除节点回调 */
     onDeleteNode?: (nodeId: string) => void;
+    /** 添加节点回调 */
+    onAddNode?: (x: number, y: number) => void;
+    /** 编辑节点文本回调 */
+    onEditNode?: (nodeId: string) => void;
+    /** 画布编辑开始回调 */
+    onEditStart?: () => void;
+    /** 画布编辑结束回调 */
+    onEditEnd?: () => void;
     /** 是否显示网格背景 */
     showGrid?: boolean;
     /** 最小缩放比例 */
@@ -29,10 +45,22 @@
     onNodeMove,
     onNodeSelect,
     onDeleteNode,
+    onAddNode,
+    onEditNode,
+    onEditStart,
+    onEditEnd,
     showGrid = true,
     minScale = 0.1,
     maxScale = 4
   }: Props = $props();
+
+  // 右键菜单状态
+  let contextMenu = $state<ContextMenuState>({
+    visible: false,
+    x: 0,
+    y: 0,
+    nodeId: null
+  });
 
   let containerEl: HTMLDivElement;
   let svgContainerEl: HTMLDivElement;
@@ -1392,6 +1420,102 @@
   export function getTranslate(): { x: number; y: number } {
     return { x: translateX, y: translateY };
   }
+
+  /**
+   * 右键菜单处理
+   */
+  function handleContextMenu(event: MouseEvent): void {
+    event.preventDefault();
+
+    // 获取点击的目标元素
+    const target = event.target as Element;
+    const nodeEl = target.closest('g.node') as SVGGElement | null;
+
+    if (nodeEl) {
+      // 在节点上右键点击
+      const nodeId = extractNodeId(nodeEl);
+      if (nodeId) {
+        selectNode(nodeId);
+        contextMenu = {
+          visible: true,
+          x: event.clientX,
+          y: event.clientY,
+          nodeId
+        };
+      }
+    } else {
+      // 在空白区域右键点击
+      contextMenu = {
+        visible: true,
+        x: event.clientX,
+        y: event.clientY,
+        nodeId: null
+      };
+    }
+
+    // 通知编辑开始
+    onEditStart?.();
+  }
+
+  function closeContextMenu(): void {
+    contextMenu = { ...contextMenu, visible: false };
+  }
+
+  function getContextMenuItems(): MenuItem[] {
+    if (contextMenu.nodeId) {
+      // 节点上的菜单
+      return [
+        { id: 'edit', label: '编辑节点', icon: '✏️', shortcut: 'E' },
+        { id: 'separator1', label: '', separator: true },
+        { id: 'delete', label: '删除节点', icon: '🗑️', shortcut: 'Del', danger: true }
+      ];
+    } else {
+      // 空白区域的菜单
+      return [
+        { id: 'add-node', label: '添加节点', icon: '➕' },
+        { id: 'separator1', label: '', separator: true },
+        { id: 'fit-view', label: '适应视图', icon: '🔲' },
+        { id: 'reset-zoom', label: '重置缩放', icon: '🔄' }
+      ];
+    }
+  }
+
+  function handleContextMenuSelect(itemId: string): void {
+    switch (itemId) {
+      case 'edit':
+        if (contextMenu.nodeId) {
+          onEditNode?.(contextMenu.nodeId);
+        }
+        break;
+      case 'delete':
+        if (contextMenu.nodeId) {
+          onDeleteNode?.(contextMenu.nodeId);
+          if (selectedNodeId === contextMenu.nodeId) {
+            selectedNodeId = null;
+          }
+        }
+        break;
+      case 'add-node':
+        // 计算画布坐标
+        if (containerEl) {
+          const rect = containerEl.getBoundingClientRect();
+          const canvasX = (contextMenu.x - rect.left - translateX) / scale;
+          const canvasY = (contextMenu.y - rect.top - translateY) / scale;
+          onAddNode?.(canvasX, canvasY);
+        }
+        break;
+      case 'fit-view':
+        fitToView();
+        break;
+      case 'reset-zoom':
+        resetZoom();
+        break;
+    }
+
+    // 通知编辑结束
+    onEditEnd?.();
+    closeContextMenu();
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -1405,6 +1529,7 @@
   onmousemove={handleMouseMove}
   onmouseup={handleMouseUp}
   onmouseleave={handleMouseUp}
+  oncontextmenu={handleContextMenu}
   onkeydown={handleKeyDown}
   role="application"
   aria-label="Interactive Mermaid diagram"
@@ -1415,6 +1540,17 @@
   <!-- 缩放指示器 -->
   <div class="zoom-indicator">{Math.round(scale * 100)}%</div>
 </div>
+
+<!-- 右键菜单 -->
+{#if contextMenu.visible}
+  <ContextMenu
+    x={contextMenu.x}
+    y={contextMenu.y}
+    items={getContextMenuItems()}
+    onSelect={handleContextMenuSelect}
+    onClose={closeContextMenu}
+  />
+{/if}
 
 <style>
   .interactive-canvas {
