@@ -222,7 +222,7 @@ describe('Mermaid Flowchart 兼容性测试', () => {
   // ============================================
   describe('5. [待实现] 不可见边 ~~~', () => {
 
-    it.skip('5.1 不可见边应解析为 invisible stroke', () => {
+    it('5.1 不可见边应解析为 invisible stroke', () => {
       const model = parser.parse('flowchart LR\n  A ~~~ B');
       expect(model.edges[0].stroke).toBe('invisible');
     });
@@ -230,13 +230,15 @@ describe('Mermaid Flowchart 兼容性测试', () => {
 
   describe('5. [待实现] 多节点链接 &', () => {
 
-    it.skip('5.2 A & B --> C 应展开为 2 条边', () => {
+    it('5.2 A & B --> C 应展开为 2 条边', () => {
       const model = parser.parse('flowchart LR\n  A & B --> C');
       expect(model.edgeCount).toBe(2);
+      expect(model.edges.find((e) => e.source === 'A' && e.target === 'C')).toBeDefined();
+      expect(model.edges.find((e) => e.source === 'B' && e.target === 'C')).toBeDefined();
     });
 
-    it.skip('5.3 A & B --> C & D 应展开为 4 条边', () => {
-      const model = parser.parse('flowchart TB\n  A & B--> C & D');
+    it('5.3 A & B --> C & D 应展开为 4 条边', () => {
+      const model = parser.parse('flowchart TB\n  A & B --> C & D');
       expect(model.edgeCount).toBe(4);
     });
   });

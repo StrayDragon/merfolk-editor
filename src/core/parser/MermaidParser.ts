@@ -52,6 +52,9 @@ const EDGE_PATTERNS: Array<{
   arrowEnd: ArrowType;
   hasText: boolean;
 }> = [
+  // Invisible edge (must be first to avoid matching as normal)
+  { pattern: /^~~~$/, stroke: 'invisible', arrowStart: 'none', arrowEnd: 'none', hasText: false },
+
   // Thick lines
   { pattern: /^<==>$/, stroke: 'thick', arrowStart: 'arrow', arrowEnd: 'arrow', hasText: false },
   { pattern: /^==>$/, stroke: 'thick', arrowStart: 'none', arrowEnd: 'arrow', hasText: false },
@@ -334,8 +337,22 @@ export class MermaidParser {
 
   /**
    * Parse node and edge statements: A --> B or A[text] --> B[text]
+   * Also handles multi-node links: A & B --> C & D
    */
   private parseNodeEdgeStatement(line: string, ctx: ParseContext): void {
+    // First, expand multi-node links (A & B --> C & D)
+    const expandedLines = this.expandMultiNodeLinks(line);
+
+    // Process each expanded line
+    for (const expandedLine of expandedLines) {
+      this.parseSimpleNodeEdgeStatement(expandedLine, ctx);
+    }
+  }
+
+  /**
+   * Parse a simple node-edge statement (no & operator)
+   */
+  private parseSimpleNodeEdgeStatement(line: string, ctx: ParseContext): void {
     // Split by edge operators while preserving them
     const parts = this.splitByEdges(line);
 
@@ -360,6 +377,96 @@ export class MermaidParser {
         pendingEdge = { operator: part.content, text: part.text };
       }
     }
+  }
+
+  /**
+   * Expand multi-node links using & operator
+   * Example: "A & B --> C & D" expands to:
+   * - "A --> C"
+   * - "A --> D"
+   * - "B --> C"
+   * - "B --> D"
+   */
+  private expandMultiNodeLinks(line: string): string[] {
+    // Check if line contains & operator (not inside brackets/quotes)
+    if (!line.includes(' & ') && !line.includes('& ') && !line.includes(' &')) {
+      return [line];
+    }
+
+    // Find edge operator in the line
+    const edgeMatch = line.match(/(~~~|<==?>|<==>|==?>|===?|<-\.->|-\.->|-\.-?|<-->|-->|o--o|x--x|--o|--x|---?)/);
+    if (!edgeMatch) {
+      return [line];
+    }
+
+    const edgeOp = edgeMatch[0];
+    const edgeIndex = edgeMatch.index!;
+
+    // Split into left and right parts
+    const leftPart = line.substring(0, edgeIndex).trim();
+    const rightPart = line.substring(edgeIndex + edgeOp.length).trim();
+
+    // Also capture any text on the edge (|text| or == text ==> format)
+    // For simplicity, we'll pass through the full edge operator
+    const fullEdgeMatch = line.substring(edgeIndex).match(/^(~~~|<==?>|<==>|==?>|===?|<-\.->|-\.->|-\.-?|<-->|-->|o--o|x--x|--o|--x|---?)(\|[^|]+\|)?/);
+    const fullEdge = fullEdgeMatch ? fullEdgeMatch[0] : edgeOp;
+    const rightStartIndex = edgeIndex + fullEdge.length;
+    const actualRightPart = line.substring(rightStartIndex).trim();
+
+    // Split by & operator (but not inside brackets)
+    const leftNodes = this.splitByAmpersand(leftPart);
+    const rightNodes = this.splitByAmpersand(actualRightPart);
+
+    // Generate cartesian product
+    const result: string[] = [];
+    for (const left of leftNodes) {
+      for (const right of rightNodes) {
+        result.push(`${left.trim()} ${fullEdge} ${right.trim()}`);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Split a string by & operator, respecting brackets
+   */
+  private splitByAmpersand(str: string): string[] {
+    const parts: string[] = [];
+    let current = '';
+    let depth = 0;
+
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
+
+      if (char === '[' || char === '(' || char === '{') {
+        depth++;
+        current += char;
+      } else if (char === ']' || char === ')' || char === '}') {
+        depth--;
+        current += char;
+      } else if (char === '&' && depth === 0) {
+        // Check for surrounding spaces (to not match && or &= etc.)
+        const prevChar = str[i - 1];
+        const nextChar = str[i + 1];
+        if ((prevChar === ' ' || prevChar === undefined) && (nextChar === ' ' || nextChar === undefined)) {
+          if (current.trim()) {
+            parts.push(current.trim());
+          }
+          current = '';
+          continue;
+        }
+        current += char;
+      } else {
+        current += char;
+      }
+    }
+
+    if (current.trim()) {
+      parts.push(current.trim());
+    }
+
+    return parts.length > 0 ? parts : [str];
   }
 
   /**
@@ -426,9 +533,10 @@ export class MermaidParser {
     }
 
     // Fall back to standard edge regex
-    // Matches: -->, -->|text|, ==>, ==>|text|, -.->, -.->|text|, etc.
+    // Matches: -->, -->|text|, ==>, ==>|text|, -.->, -.->|text|, ~~~, etc.
     // Note: Order matters! --o, --x, o--o, x--x must come before ---? to avoid premature matching
-    const edgeRegex = /(<==?>|<==>|==?>|===?|<-\.->|-\.->|-\.-?|<-->|-->|o--o|x--x|--o|--x|---?)(\|[^|]+\|)?/g;
+    // ~~~ is invisible edge (no text support)
+    const edgeRegex = /(~~~|<==?>|<==>|==?>|===?|<-\.->|-\.->|-\.-?|<-->|-->|o--o|x--x|--o|--x|---?)(\|[^|]+\|)?/g;
 
     let lastIndex = 0;
     let match;
