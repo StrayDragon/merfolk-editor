@@ -7,7 +7,6 @@
   import { interactiveCanvasLogger as logger } from '../lib/logger';
   import { CANVAS_PADDING, MIN_LABEL_DISTANCE, MAX_LABEL_DISTANCE } from '../core/constants';
   import ContextMenu, { type MenuItem } from './ContextMenu.svelte';
-  import NodeOverlay from './NodeOverlay.svelte';
 
   interface ContextMenuState {
     visible: boolean;
@@ -72,6 +71,7 @@
   let svgContainerEl: HTMLDivElement;
   let renderCounter = 0;
   let selectedNodeId: string | null = $state(null);
+  let selectedEdgeId: string | null = $state(null);
 
   // 多选支持
   let selectedNodeIds = $state<Set<string>>(new Set());
@@ -413,12 +413,67 @@
       });
     }
 
+    // 为边添加点击事件
+    edgeInfoList.forEach((edgeInfo) => {
+      const path = edgeInfo.element;
+      path.style.cursor = 'pointer';
+      // 增加点击区域
+      path.style.strokeWidth = path.style.strokeWidth || '3';
+
+      path.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectEdge(edgeInfo.id);
+      });
+
+      // 边的右键菜单
+      path.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        selectedEdgeId = edgeInfo.id;
+        selectedNodeId = null;
+        selectedNodeIds.clear();
+        contextMenu = {
+          visible: true,
+          x: e.clientX,
+          y: e.clientY,
+          nodeId: null,
+        };
+      });
+    });
+
     // 点击空白处取消选择
     svg.addEventListener('click', (e) => {
       if (e.target === svg || (e.target as Element).tagName === 'rect') {
         selectNode(null);
+        selectEdge(null);
       }
     });
+  }
+
+  /**
+   * 选中/取消选中边
+   */
+  function selectEdge(edgeId: string | null): void {
+    // 取消之前选中边的样式
+    if (selectedEdgeId) {
+      const prevEdge = edgeInfoList.find(e => e.id === selectedEdgeId);
+      if (prevEdge) {
+        prevEdge.element.classList.remove('edge-selected');
+      }
+    }
+
+    selectedEdgeId = edgeId;
+
+    // 选中边时取消节点选择
+    if (edgeId) {
+      selectedNodeId = null;
+      selectedNodeIds.clear();
+
+      const edge = edgeInfoList.find(e => e.id === edgeId);
+      if (edge) {
+        edge.element.classList.add('edge-selected');
+      }
+    }
   }
 
   /**
@@ -1490,10 +1545,134 @@
   }
 
   /**
-   * 获取选中节点的边界信息（用于 NodeOverlay）
-   * 返回的是相对于容器的屏幕坐标
+   * 获取选中节点的边界信息（SVG 坐标系）
+   * 用于在 SVG 内部渲染覆盖层
    */
-  function getSelectedNodeBounds(): { x: number; y: number; width: number; height: number } | null {
+  function getSelectedNodeSvgBounds(): { x: number; y: number; width: number; height: number } | null {
+    if (!selectedNodeId) return null;
+    const nodeInfo = nodeInfoMap.get(selectedNodeId);
+    if (!nodeInfo) return null;
+
+    // 直接返回 SVG 坐标系中的位置
+    return {
+      x: nodeInfo.x - nodeInfo.width / 2,
+      y: nodeInfo.y - nodeInfo.height / 2,
+      width: nodeInfo.width,
+      height: nodeInfo.height,
+    };
+  }
+
+  // 响应式获取选中节点边界（SVG 坐标）
+  const selectedNodeSvgBounds = $derived.by(() => {
+    if (!selectedNodeId) return null;
+    return getSelectedNodeSvgBounds();
+  });
+
+  /**
+   * 在 SVG 内部渲染选择覆盖层
+   */
+  function updateSvgOverlay(): void {
+    const svg = svgContainerEl?.querySelector('svg');
+    if (!svg) return;
+
+    // 移除旧的覆盖层
+    const existingOverlay = svg.querySelector('.node-overlay-group');
+    if (existingOverlay) {
+      existingOverlay.remove();
+    }
+
+    // 如果没有选中节点或多选，不显示覆盖层
+    if (!selectedNodeId || selectedNodeIds.size !== 1) return;
+
+    const bounds = getSelectedNodeSvgBounds();
+    if (!bounds) return;
+
+    // 创建覆盖层 SVG 组
+    const overlayGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    overlayGroup.setAttribute('class', 'node-overlay-group');
+
+    // 选择框
+    const selectionRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    selectionRect.setAttribute('x', String(bounds.x - 2));
+    selectionRect.setAttribute('y', String(bounds.y - 2));
+    selectionRect.setAttribute('width', String(bounds.width + 4));
+    selectionRect.setAttribute('height', String(bounds.height + 4));
+    selectionRect.setAttribute('fill', 'none');
+    selectionRect.setAttribute('stroke', '#0d6efd');
+    selectionRect.setAttribute('stroke-width', '2');
+    selectionRect.setAttribute('rx', '2');
+    selectionRect.style.pointerEvents = 'none';
+    overlayGroup.appendChild(selectionRect);
+
+    // 底部连接点
+    const portGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    const portX = bounds.x + bounds.width / 2;
+    const portY = bounds.y + bounds.height;
+    portGroup.setAttribute('transform', `translate(${portX}, ${portY})`);
+    portGroup.style.cursor = 'pointer';
+
+    // 连接点背景圆
+    const portCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    portCircle.setAttribute('r', '10');
+    portCircle.setAttribute('fill', 'white');
+    portCircle.setAttribute('stroke', '#0d6efd');
+    portCircle.setAttribute('stroke-width', '2');
+    portGroup.appendChild(portCircle);
+
+    // 加号横线
+    const hLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    hLine.setAttribute('x1', '-5');
+    hLine.setAttribute('y1', '0');
+    hLine.setAttribute('x2', '5');
+    hLine.setAttribute('y2', '0');
+    hLine.setAttribute('stroke', '#0d6efd');
+    hLine.setAttribute('stroke-width', '2');
+    hLine.setAttribute('stroke-linecap', 'round');
+    portGroup.appendChild(hLine);
+
+    // 加号竖线
+    const vLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    vLine.setAttribute('x1', '0');
+    vLine.setAttribute('y1', '-5');
+    vLine.setAttribute('x2', '0');
+    vLine.setAttribute('y2', '5');
+    vLine.setAttribute('stroke', '#0d6efd');
+    vLine.setAttribute('stroke-width', '2');
+    vLine.setAttribute('stroke-linecap', 'round');
+    portGroup.appendChild(vLine);
+
+    // 连接点点击事件
+    portGroup.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (selectedNodeId) {
+        onAddEdge?.(selectedNodeId);
+      }
+    });
+
+    // Hover 效果
+    portGroup.addEventListener('mouseenter', () => {
+      portCircle.setAttribute('r', '12');
+    });
+    portGroup.addEventListener('mouseleave', () => {
+      portCircle.setAttribute('r', '10');
+    });
+
+    overlayGroup.appendChild(portGroup);
+    svg.appendChild(overlayGroup);
+  }
+
+  // 响应式更新 SVG 覆盖层
+  $effect(() => {
+    // 依赖选中状态
+    void selectedNodeId;
+    void selectedNodeIds.size;
+    updateSvgOverlay();
+  });
+
+  /**
+   * 获取选中节点的屏幕坐标（用于工具栏定位）
+   */
+  function getSelectedNodeScreenBounds(): { x: number; y: number; width: number; height: number } | null {
     if (!selectedNodeId || !containerEl) return null;
     const nodeInfo = nodeInfoMap.get(selectedNodeId);
     if (!nodeInfo) return null;
@@ -1509,36 +1688,6 @@
       width: nodeRect.width,
       height: nodeRect.height,
     };
-  }
-
-  // 响应式获取选中节点边界（屏幕坐标）
-  // 注意：这里返回的已经是屏幕坐标，NodeOverlay 不需要再次转换
-  const selectedNodeBounds = $derived.by(() => {
-    // 依赖 selectedNodeId 和 scale/translate 触发更新
-    if (!selectedNodeId) return null;
-    // 添加对 scale 和 translate 的依赖
-    void scale;
-    void translateX;
-    void translateY;
-    return getSelectedNodeBounds();
-  });
-
-  /**
-   * 处理从 NodeOverlay 触发的添加边操作
-   */
-  function handleOverlayAddEdge(nodeId: string, _direction: 'top' | 'right' | 'bottom' | 'left') {
-    onAddEdge?.(nodeId);
-  }
-
-  /**
-   * 处理从 NodeOverlay 触发的复制操作
-   */
-  function handleDuplicateNode(nodeId: string) {
-    const nodeInfo = nodeInfoMap.get(nodeId);
-    if (nodeInfo && onAddNode) {
-      // 在节点右下方创建副本
-      onAddNode(nodeInfo.x + 50, nodeInfo.y + 50);
-    }
   }
 
   /**
@@ -1589,6 +1738,13 @@
         { id: 'add-edge', label: '添加连接' },
         { id: 'separator1', label: '', separator: true },
         { id: 'delete', label: '删除节点', shortcut: 'Del', danger: true }
+      ];
+    } else if (selectedEdgeId) {
+      // 边上的菜单
+      return [
+        { id: 'edit-edge', label: '编辑边文本', shortcut: 'E' },
+        { id: 'separator1', label: '', separator: true },
+        { id: 'delete-edge', label: '删除边', shortcut: 'Del', danger: true }
       ];
     } else {
       // 空白区域的菜单 - 支持二级菜单选择节点形状
@@ -1645,6 +1801,19 @@
           if (selectedNodeId === contextMenu.nodeId) {
             selectedNodeId = null;
           }
+        }
+        break;
+      case 'edit-edge':
+        if (selectedEdgeId) {
+          // TODO: 实现边文本编辑
+          logger.info('Edit edge:', selectedEdgeId);
+        }
+        break;
+      case 'delete-edge':
+        if (selectedEdgeId) {
+          // TODO: 实现边删除
+          logger.info('Delete edge:', selectedEdgeId);
+          selectEdge(null);
         }
         break;
       case 'add-node':
@@ -1711,16 +1880,28 @@
     ></div>
   {/if}
 
-  <!-- 节点选中覆盖层 (draw.io 风格) -->
-  {#if selectedNodeId && selectedNodeBounds && selectedNodeIds.size === 1}
-    <NodeOverlay
-      nodeId={selectedNodeId}
-      bounds={selectedNodeBounds}
-      onEdit={onEditNode}
-      onDelete={onDeleteNode}
-      onAddEdge={handleOverlayAddEdge}
-      onDuplicate={handleDuplicateNode}
-    />
+  <!-- 节点选中时的浮动工具栏 (HTML 元素) -->
+  {#if selectedNodeId && selectedNodeIds.size === 1}
+    {@const bounds = getSelectedNodeScreenBounds()}
+    {#if bounds}
+      <div
+        class="node-toolbar"
+        style="left: {bounds.x + bounds.width / 2}px; top: {bounds.y - 8}px;"
+      >
+        <button onclick={() => selectedNodeId && onEditNode?.(selectedNodeId)} title="编辑 (双击)">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
+        <button onclick={() => selectedNodeId && onDeleteNode?.(selectedNodeId)} title="删除 (Del)" class="danger">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+        </button>
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -1813,6 +1994,43 @@
     z-index: 100;
   }
 
+  /* 节点浮动工具栏 */
+  .node-toolbar {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    display: flex;
+    gap: 1px;
+    padding: 3px;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    z-index: 30;
+  }
+
+  .node-toolbar button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #495057;
+    cursor: pointer;
+  }
+
+  .node-toolbar button:hover {
+    background: #f1f3f4;
+  }
+
+  .node-toolbar button.danger:hover {
+    background: #fff5f5;
+    color: #dc3545;
+  }
+
   /* 节点悬停效果 */
   .svg-container :global(g.node) {
     cursor: move;
@@ -1832,6 +2050,13 @@
   .svg-container :global(g.node.selected circle) {
     stroke: #1976d2 !important;
     stroke-width: 2px !important;
+  }
+
+  /* 边选中状态 */
+  .svg-container :global(path.edge-selected) {
+    stroke: #1976d2 !important;
+    stroke-width: 3px !important;
+    filter: drop-shadow(0 0 4px rgba(25, 118, 210, 0.5));
   }
 
   .svg-container :global(.render-error) {

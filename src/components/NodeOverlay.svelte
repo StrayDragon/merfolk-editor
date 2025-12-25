@@ -1,24 +1,23 @@
 <script lang="ts">
   /**
-   * NodeOverlay - 节点选中时的覆盖层
-   * 包含：选择框、连接点(ports)、浮动工具栏
+   * NodeOverlay - 节点选中时的覆盖层 (draw.io 风格)
    *
-   * 注意：bounds 传入的已经是屏幕坐标，不需要再进行转换
+   * 简化版：只显示底部连接点（符合流程图从上到下的流向）
+   * 使用屏幕坐标，配合 transform 变化更新
    */
   interface NodeBounds {
-    x: number;      // 屏幕坐标 X
-    y: number;      // 屏幕坐标 Y
+    x: number;      // 屏幕坐标 X (相对于容器)
+    y: number;      // 屏幕坐标 Y (相对于容器)
     width: number;  // 屏幕宽度（已缩放）
     height: number; // 屏幕高度（已缩放）
   }
 
   interface Props {
     nodeId: string;
-    bounds: NodeBounds; // 已经是屏幕坐标
+    bounds: NodeBounds;
     onEdit?: (nodeId: string) => void;
     onDelete?: (nodeId: string) => void;
-    onAddEdge?: (nodeId: string, direction: 'top' | 'right' | 'bottom' | 'left') => void;
-    onDuplicate?: (nodeId: string) => void;
+    onAddEdge?: (nodeId: string) => void;
   }
 
   let {
@@ -27,87 +26,61 @@
     onEdit,
     onDelete,
     onAddEdge,
-    onDuplicate,
   }: Props = $props();
 
-  // bounds 已经是屏幕坐标，直接使用
-  const screenX = $derived(bounds.x);
-  const screenY = $derived(bounds.y);
-  const screenWidth = $derived(bounds.width);
-  const screenHeight = $derived(bounds.height);
+  // 直接使用 bounds（已经是屏幕坐标）
+  const x = $derived(bounds.x);
+  const y = $derived(bounds.y);
+  const width = $derived(bounds.width);
+  const height = $derived(bounds.height);
 
-  // Port 位置（中心点）
-  const ports = $derived([
-    { id: 'top', x: screenX + screenWidth / 2, y: screenY, direction: 'top' as const },
-    { id: 'right', x: screenX + screenWidth, y: screenY + screenHeight / 2, direction: 'right' as const },
-    { id: 'bottom', x: screenX + screenWidth / 2, y: screenY + screenHeight, direction: 'bottom' as const },
-    { id: 'left', x: screenX, y: screenY + screenHeight / 2, direction: 'left' as const },
-  ]);
+  // 只有底部一个连接点
+  const portX = $derived(x + width / 2);
+  const portY = $derived(y + height);
 
-  function handlePortClick(direction: 'top' | 'right' | 'bottom' | 'left') {
-    onAddEdge?.(nodeId, direction);
-  }
+  // 工具栏位置（节点上方）
+  const toolbarX = $derived(x + width / 2);
+  const toolbarY = $derived(y - 8);
 </script>
 
 <!-- 选择框 -->
 <div
-  class="node-selection-box"
+  class="selection-box"
   style="
-    left: {screenX - 2}px;
-    top: {screenY - 2}px;
-    width: {screenWidth + 4}px;
-    height: {screenHeight + 4}px;
+    left: {x - 1}px;
+    top: {y - 1}px;
+    width: {width + 2}px;
+    height: {height + 2}px;
   "
+></div>
+
+<!-- 底部连接点 (只有一个) -->
+<button
+  class="port-button"
+  style="left: {portX}px; top: {portY}px;"
+  onclick={() => onAddEdge?.(nodeId)}
+  title="添加下级节点连接"
 >
-  <!-- 四个角的调整手柄（仅视觉，不可拖拽） -->
-  <div class="resize-handle nw"></div>
-  <div class="resize-handle ne"></div>
-  <div class="resize-handle sw"></div>
-  <div class="resize-handle se"></div>
-</div>
+  <svg viewBox="0 0 16 16" width="16" height="16">
+    <circle cx="8" cy="8" r="7" fill="white" stroke="#0d6efd" stroke-width="2"/>
+    <line x1="8" y1="4" x2="8" y2="12" stroke="#0d6efd" stroke-width="2" stroke-linecap="round"/>
+    <line x1="4" y1="8" x2="12" y2="8" stroke="#0d6efd" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+</button>
 
-<!-- 连接点 (Ports) -->
-{#each ports as port}
-  <button
-    class="connection-port"
-    style="left: {port.x}px; top: {port.y}px;"
-    onclick={() => handlePortClick(port.direction)}
-    title="添加连接"
-  >
-    <svg viewBox="0 0 12 12" width="12" height="12">
-      <circle cx="6" cy="6" r="5" fill="white" stroke="#1976d2" stroke-width="2"/>
-      <line x1="6" y1="3" x2="6" y2="9" stroke="#1976d2" stroke-width="1.5"/>
-      <line x1="3" y1="6" x2="9" y2="6" stroke="#1976d2" stroke-width="1.5"/>
-    </svg>
-  </button>
-{/each}
-
-<!-- 浮动工具栏 -->
+<!-- 浮动工具栏（紧凑版） -->
 <div
-  class="floating-toolbar"
-  style="
-    left: {screenX + screenWidth / 2}px;
-    top: {screenY - 40}px;
-  "
+  class="toolbar"
+  style="left: {toolbarX}px; top: {toolbarY}px;"
 >
-  <button class="toolbar-btn" onclick={() => onEdit?.(nodeId)} title="编辑">
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+  <button onclick={() => onEdit?.(nodeId)} title="编辑 (双击)">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
     </svg>
   </button>
-
-  <button class="toolbar-btn" onclick={() => onDuplicate?.(nodeId)} title="复制">
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-    </svg>
-  </button>
-
-  <div class="toolbar-divider"></div>
-
-  <button class="toolbar-btn danger" onclick={() => onDelete?.(nodeId)} title="删除">
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+  <button onclick={() => onDelete?.(nodeId)} title="删除 (Del)" class="danger">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
       <polyline points="3 6 5 6 21 6"/>
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
     </svg>
@@ -115,36 +88,20 @@
 </div>
 
 <style>
-  /* 选择框 */
-  .node-selection-box {
+  .selection-box {
     position: absolute;
-    border: 2px solid #1976d2;
+    border: 2px solid #0d6efd;
     background: transparent;
     pointer-events: none;
     z-index: 10;
+    border-radius: 2px;
   }
 
-  /* 调整手柄 */
-  .resize-handle {
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    background: white;
-    border: 2px solid #1976d2;
-    border-radius: 1px;
-  }
-
-  .resize-handle.nw { top: -4px; left: -4px; }
-  .resize-handle.ne { top: -4px; right: -4px; }
-  .resize-handle.sw { bottom: -4px; left: -4px; }
-  .resize-handle.se { bottom: -4px; right: -4px; }
-
-  /* 连接点 */
-  .connection-port {
+  .port-button {
     position: absolute;
     transform: translate(-50%, -50%);
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -153,61 +110,49 @@
     border-radius: 50%;
     cursor: pointer;
     z-index: 20;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
     padding: 0;
+    transition: transform 0.1s ease;
   }
 
-  .connection-port:hover {
-    transform: translate(-50%, -50%) scale(1.2);
-    box-shadow: 0 2px 6px rgba(25, 118, 210, 0.4);
+  .port-button:hover {
+    transform: translate(-50%, -50%) scale(1.15);
+    box-shadow: 0 2px 8px rgba(13, 110, 253, 0.4);
   }
 
-  /* 浮动工具栏 */
-  .floating-toolbar {
+  .toolbar {
     position: absolute;
-    transform: translateX(-50%);
+    transform: translate(-50%, -100%);
     display: flex;
-    align-items: center;
-    gap: 2px;
-    padding: 4px;
-    background: white;
-    border: 1px solid #e0e0e0;
+    gap: 1px;
+    padding: 3px;
+    background: #fff;
+    border: 1px solid #dee2e6;
     border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
     z-index: 30;
   }
 
-  .floating-toolbar .toolbar-btn {
+  .toolbar button {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     padding: 0;
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: #555;
+    color: #495057;
     cursor: pointer;
-    transition: all 0.15s ease;
   }
 
-  .floating-toolbar .toolbar-btn:hover {
-    background: #f0f0f0;
-    color: #333;
+  .toolbar button:hover {
+    background: #f1f3f4;
   }
 
-  .floating-toolbar .toolbar-btn.danger:hover {
-    background: #ffebee;
-    color: #d32f2f;
-  }
-
-  .toolbar-divider {
-    width: 1px;
-    height: 20px;
-    background: #e0e0e0;
-    margin: 0 4px;
+  .toolbar button.danger:hover {
+    background: #fff5f5;
+    color: #dc3545;
   }
 </style>
-
