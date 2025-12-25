@@ -334,14 +334,68 @@ export class MermaidParser {
 
   /**
    * Split a line into node and edge parts
-   * Handles Mermaid syntax: A -->|text| B or A --> B
+   * Handles Mermaid syntax:
+   * - A -->|text| B (pipe-delimited text)
+   * - A -- text --> B (space-delimited text)
+   * - A -. text .-> B (dotted with space text)
+   * - A == text ==> B (thick with space text)
    */
   private splitByEdges(
     line: string
   ): Array<{ type: 'node' | 'edge'; content: string; text?: string }> {
     const result: Array<{ type: 'node' | 'edge'; content: string; text?: string }> = [];
 
-    // Regex to match edge operators with optional |text| label
+    // First, try to match space-delimited text patterns (higher priority)
+    // These patterns: A -- text --> B, A -. text .-> B, A == text ==> B
+    const spaceTextPatterns = [
+      // Thick with space text: == text ==>
+      /==\s+(.+?)\s+==>/g,
+      // Dotted with space text: -. text .->
+      /-\.\s*(.+?)\s*\.->/g,
+      // Normal with space text: -- text -->
+      /--\s+(.+?)\s+-->/g,
+      // Normal no arrow with space text: -- text ---
+      /--\s+(.+?)\s+---/g,
+    ];
+
+    // Try space text patterns first
+    for (const pattern of spaceTextPatterns) {
+      pattern.lastIndex = 0;
+      const match = pattern.exec(line);
+      if (match) {
+        // Found a space-delimited text pattern
+        // Parse: NodeA -- text --> NodeB
+        const beforeMatch = line.substring(0, match.index).trim();
+        const afterMatch = line.substring(match.index + match[0].length).trim();
+        const text = match[1].trim();
+
+        // Determine the edge type from the original match
+        const fullMatch = match[0];
+        let edgeOp: string;
+        if (fullMatch.includes('==>')) {
+          edgeOp = '==>';
+        } else if (fullMatch.includes('.->')) {
+          edgeOp = '-.->'; // Use full dotted arrow syntax for proper detection
+        } else if (fullMatch.includes('-->')) {
+          edgeOp = '-->';
+        } else {
+          edgeOp = '---';
+        }
+
+        if (beforeMatch) {
+          result.push({ type: 'node', content: beforeMatch });
+        }
+        result.push({ type: 'edge', content: edgeOp, text });
+        if (afterMatch) {
+          // Recursively parse the remaining part (for chained edges)
+          const remaining = this.splitByEdges(afterMatch);
+          result.push(...remaining);
+        }
+        return result;
+      }
+    }
+
+    // Fall back to standard edge regex
     // Matches: -->, -->|text|, ==>, ==>|text|, -.->, -.->|text|, etc.
     // Note: Order matters! --o, --x, o--o, x--x must come before ---? to avoid premature matching
     const edgeRegex = /(<==?>|<==>|==?>|===?|<-\.->|-\.->|-\.-?|<-->|-->|o--o|x--x|--o|--x|---?)(\|[^|]+\|)?/g;
@@ -387,7 +441,9 @@ export class MermaidParser {
 
       if (match) {
         const id = match[1];
-        const text = match[2].trim();
+        let text = match[2].trim();
+        // Remove surrounding quotes if present (Mermaid allows quoted text)
+        text = this.unquoteText(text);
         this.ensureNode(id, text, shape, ctx);
         return id;
       }
@@ -399,6 +455,30 @@ export class MermaidParser {
       this.ensureNode(id, id, 'rect', ctx);
     }
     return id;
+  }
+
+  /**
+   * Remove surrounding quotes from text
+   * Handles: "text", 'text', `text`, "`text`"
+   */
+  private unquoteText(text: string): string {
+    // Handle Mermaid markdown string syntax: "`text`"
+    if (text.startsWith('"`') && text.endsWith('`"')) {
+      return text.slice(2, -2);
+    }
+    // Handle double quotes: "text"
+    if (text.startsWith('"') && text.endsWith('"') && text.length > 1) {
+      return text.slice(1, -1);
+    }
+    // Handle single quotes: 'text'
+    if (text.startsWith("'") && text.endsWith("'") && text.length > 1) {
+      return text.slice(1, -1);
+    }
+    // Handle backticks: `text`
+    if (text.startsWith('`') && text.endsWith('`') && text.length > 1) {
+      return text.slice(1, -1);
+    }
+    return text;
   }
 
   /**
