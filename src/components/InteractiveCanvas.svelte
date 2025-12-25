@@ -1254,9 +1254,10 @@
   }
 
   /**
-   * 清除所有选中状态
+   * 清除所有选中状态（包括节点和边）
    */
   function clearAllSelections(): void {
+    // 清除节点选择
     for (const id of selectedNodeIds) {
       const node = nodeInfoMap.get(id);
       if (node) {
@@ -1265,6 +1266,9 @@
     }
     selectedNodeIds.clear();
     selectedNodeIds = new Set();
+
+    // 清除边选择
+    selectEdge(null);
   }
 
   /**
@@ -1776,12 +1780,28 @@
     }
   }
 
-  // 快速插入节点的形状选项
-  const quickInsertShapes: { shape: ShapeType; icon: string; label: string }[] = [
-    { shape: 'rect', icon: '▭', label: '矩形' },
-    { shape: 'rounded', icon: '▢', label: '圆角' },
-    { shape: 'diamond', icon: '◇', label: '菱形' },
-    { shape: 'circle', icon: '○', label: '圆形' },
+  // 快速插入节点的形状选项（使用 SVG path）
+  const quickInsertShapes: { shape: ShapeType; svg: string; label: string }[] = [
+    {
+      shape: 'rect',
+      svg: '<rect x="2" y="4" width="12" height="8" rx="0" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+      label: '矩形'
+    },
+    {
+      shape: 'rounded',
+      svg: '<rect x="2" y="4" width="12" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+      label: '圆角'
+    },
+    {
+      shape: 'diamond',
+      svg: '<path d="M8 2 L14 8 L8 14 L2 8 Z" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+      label: '菱形'
+    },
+    {
+      shape: 'circle',
+      svg: '<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+      label: '圆形'
+    },
   ];
 
   /**
@@ -2032,14 +2052,16 @@
         </div>
         <!-- 下方：快速插入节点按钮 -->
         <div class="quick-insert-bar">
-          <span class="quick-insert-label">插入节点:</span>
-          {#each quickInsertShapes as { shape, icon, label }}
+          <span class="quick-insert-label">插入:</span>
+          {#each quickInsertShapes as { shape, svg, label }}
             <button
               class="quick-insert-btn"
               onclick={() => handleInsertNodeOnEdge(shape)}
               title={`在此插入${label}节点`}
             >
-              {icon}
+              <svg viewBox="0 0 16 16" width="14" height="14">
+                {@html svg}
+              </svg>
             </button>
           {/each}
         </div>
@@ -2255,22 +2277,27 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 26px;
+    height: 26px;
     padding: 0;
     border: 1px solid #a5d6a7;
-    border-radius: 4px;
+    border-radius: 6px;
     background: #fff;
-    color: #388e3c;
+    color: #2e7d32;
     cursor: pointer;
-    font-size: 14px;
     transition: all 0.15s;
   }
 
+  .quick-insert-btn svg {
+    display: block;
+  }
+
   .quick-insert-btn:hover {
-    background: #c8e6c9;
-    border-color: #66bb6a;
+    background: #e8f5e9;
+    border-color: #4caf50;
+    color: #1b5e20;
     transform: scale(1.1);
+    box-shadow: 0 2px 4px rgba(76, 175, 80, 0.25);
   }
 
   /* 节点悬停效果 */
