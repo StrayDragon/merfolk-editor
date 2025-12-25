@@ -746,23 +746,66 @@ export class MermaidParser {
    * Handles: "text", 'text', `text`, "`text`"
    */
   private unquoteText(text: string): string {
+    let result = text;
+
     // Handle Mermaid markdown string syntax: "`text`"
-    if (text.startsWith('"`') && text.endsWith('`"')) {
-      return text.slice(2, -2);
+    if (result.startsWith('"`') && result.endsWith('`"')) {
+      result = result.slice(2, -2);
     }
     // Handle double quotes: "text"
-    if (text.startsWith('"') && text.endsWith('"') && text.length > 1) {
-      return text.slice(1, -1);
+    else if (result.startsWith('"') && result.endsWith('"') && result.length > 1) {
+      result = result.slice(1, -1);
     }
     // Handle single quotes: 'text'
-    if (text.startsWith("'") && text.endsWith("'") && text.length > 1) {
-      return text.slice(1, -1);
+    else if (result.startsWith("'") && result.endsWith("'") && result.length > 1) {
+      result = result.slice(1, -1);
     }
     // Handle backticks: `text`
-    if (text.startsWith('`') && text.endsWith('`') && text.length > 1) {
-      return text.slice(1, -1);
+    else if (result.startsWith('`') && result.endsWith('`') && result.length > 1) {
+      result = result.slice(1, -1);
     }
-    return text;
+
+    // Decode Mermaid entity codes (HTML-like but with # instead of &)
+    result = this.decodeEntityCodes(result);
+
+    return result;
+  }
+
+  /**
+   * Decode Mermaid entity codes
+   * Examples: #quot; -> ", #amp; -> &, #lt; -> <, #gt; -> >
+   */
+  private decodeEntityCodes(text: string): string {
+    const entityMap: Record<string, string> = {
+      '#quot;': '"',
+      '#apos;': "'",
+      '#amp;': '&',
+      '#lt;': '<',
+      '#gt;': '>',
+      '#nbsp;': '\u00A0',
+      '#semi;': ';',
+      '#colon;': ':',
+      '#equals;': '=',
+      '#lpar;': '(',
+      '#rpar;': ')',
+      '#lsqb;': '[',
+      '#rsqb;': ']',
+      '#lcub;': '{',
+      '#rcub;': '}',
+      '#pipe;': '|',
+      '#comma;': ',',
+      '#dash;': '-',
+    };
+
+    let result = text;
+    for (const [entity, char] of Object.entries(entityMap)) {
+      result = result.split(entity).join(char);
+    }
+
+    // Handle numeric entities: #35; -> #
+    result = result.replace(/#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
+
+    return result;
   }
 
   /**

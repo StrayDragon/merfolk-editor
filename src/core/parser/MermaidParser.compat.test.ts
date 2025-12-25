@@ -426,13 +426,13 @@ describe('Mermaid Flowchart 兼容性测试', () => {
       expect(model.getNode('A')?.shape).toBe('rect');
     });
 
-    it.skip('8.5 [待实现] Unicode 文本', () => {
+    it('8.5 Unicode 文本', () => {
       const model = parser.parse(`flowchart LR
         A["This ❤ Unicode"]`);
       expect(model.getNode('A')?.text).toBe('This ❤ Unicode');
     });
 
-    it.skip('8.6 [待实现] 实体编码', () => {
+    it('8.6 实体编码', () => {
       const model = parser.parse(`flowchart LR
         A["A double quote:#quot;"]`);
       expect(model.getNode('A')?.text).toContain('"');
