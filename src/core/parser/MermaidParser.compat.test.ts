@@ -279,18 +279,16 @@ describe('Mermaid Flowchart 兼容性测试', () => {
 
   describe('5. [待实现] 边 ID 和动画', () => {
 
-    it.skip('5.7 边 ID 语法 e1@-->', () => {
+    it('5.7 边 ID 语法 e1@-->', () => {
       const model = parser.parse('flowchart LR\n  A e1@--> B');
       expect(model.edges[0].id).toBe('e1');
-      // @ts-expect-error isUserDefinedId 属性待添加
       expect(model.edges[0].isUserDefinedId).toBe(true);
     });
 
-    it.skip('5.8 边动画配置', () => {
+    it('5.8 边动画配置', () => {
       const model = parser.parse(`flowchart LR
         A e1@--> B
         e1@{ animate: true }`);
-      // @ts-ignore animate 属性待添加
       expect(model.edges[0].animate).toBe(true);
     });
   });

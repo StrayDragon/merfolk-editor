@@ -214,8 +214,41 @@ export class MermaidParser {
         continue;
       }
 
+      // Edge property configuration: e1@{ animate: true }
+      // Distinguish from node @{} syntax by checking for edge-specific properties
+      const edgePropMatch = line.match(/^(\w+)@\{(.+?)\}$/);
+      if (edgePropMatch) {
+        const propsStr = edgePropMatch[2];
+        // Edge properties contain animate/animation, node properties contain shape/label
+        if (propsStr.includes('animate') || propsStr.includes('animation') || propsStr.includes('style')) {
+          this.parseEdgeProperties(edgePropMatch[1], propsStr, ctx);
+          continue;
+        }
+        // Fall through to node edge statement parsing for node @{} syntax
+      }
+
       // Node and edge statements
       this.parseNodeEdgeStatement(line, ctx);
+    }
+  }
+
+  /**
+   * Parse edge property configuration: e1@{ animate: true }
+   */
+  private parseEdgeProperties(edgeId: string, propsStr: string, ctx: ParseContext): void {
+    const props = this.parseAtProperties(propsStr);
+
+    // Find the edge with this ID and update its properties
+    for (const edge of ctx.edges) {
+      if (edge.id === edgeId) {
+        if (props.animate === 'true') {
+          edge.animate = true;
+        }
+        if (props.animation) {
+          edge.animation = props.animation as 'fast' | 'slow';
+        }
+        break;
+      }
     }
   }
 
@@ -368,13 +401,13 @@ export class MermaidParser {
 
         // If we have a pending edge, create it
         if (prevNodeId && pendingEdge) {
-          this.createEdge(prevNodeId, nodeId, pendingEdge.operator, pendingEdge.text, ctx);
+          this.createEdge(prevNodeId, nodeId, pendingEdge.operator, pendingEdge.text, ctx, pendingEdge.edgeId);
         }
 
         prevNodeId = nodeId;
         pendingEdge = null;
       } else if (part.type === 'edge') {
-        pendingEdge = { operator: part.content, text: part.text };
+        pendingEdge = { operator: part.content, text: part.text, edgeId: part.edgeId };
       }
     }
   }
@@ -476,11 +509,12 @@ export class MermaidParser {
    * - A -- text --> B (space-delimited text)
    * - A -. text .-> B (dotted with space text)
    * - A == text ==> B (thick with space text)
+   * - A e1@--> B (edge with explicit ID)
    */
   private splitByEdges(
     line: string
-  ): Array<{ type: 'node' | 'edge'; content: string; text?: string }> {
-    const result: Array<{ type: 'node' | 'edge'; content: string; text?: string }> = [];
+  ): Array<{ type: 'node' | 'edge'; content: string; text?: string; edgeId?: string }> {
+    const result: Array<{ type: 'node' | 'edge'; content: string; text?: string; edgeId?: string }> = [];
 
     // First, try to match space-delimited text patterns (higher priority)
     // These patterns: A -- text --> B, A -. text .-> B, A == text ==> B
@@ -537,7 +571,8 @@ export class MermaidParser {
     // Note: Order matters! Long patterns must come before short ones
     // ~~~ is invisible edge (no text support)
     // Support variable length: --> (1), ---> (2), ----> (3), etc.
-    const edgeRegex = /(~~~|<-+>|<={2,}>|={2,}>|={2,}|<-\.+->|-\.+->|-\.+-?|o--o|x--x|--o|--x|-{2,}>|-{2,})(\|[^|]+\|)?/g;
+    // Support edge ID: e1@--> (captures e1 as edge ID)
+    const edgeRegex = /(\w+@)?(~~~|<-+>|<={2,}>|={2,}>|={2,}|<-\.+->|-\.+->|-\.+-?|o--o|x--x|--o|--x|-{2,}>|-{2,})(\|[^|]+\|)?/g;
 
     let lastIndex = 0;
     let match;
@@ -549,12 +584,14 @@ export class MermaidParser {
         result.push({ type: 'node', content: nodePart });
       }
 
-      // Parse edge and extract text if present
-      const edgeOp = match[1];
-      const textPart = match[2]; // |text| part
+      // Parse edge and extract text and edge ID if present
+      const edgeIdPart = match[1]; // e1@ part
+      const edgeOp = match[2];
+      const textPart = match[3]; // |text| part
       const text = textPart ? textPart.slice(1, -1) : undefined; // Remove | delimiters
+      const edgeId = edgeIdPart ? edgeIdPart.slice(0, -1) : undefined; // Remove @ suffix
 
-      result.push({ type: 'edge', content: edgeOp, text });
+      result.push({ type: 'edge', content: edgeOp, text, edgeId });
       lastIndex = match.index + match[0].length;
     }
 
@@ -764,7 +801,8 @@ export class MermaidParser {
     target: string,
     operator: string,
     text: string | undefined,
-    ctx: ParseContext
+    ctx: ParseContext,
+    userEdgeId?: string
   ): void {
     // Parse the operator to determine stroke and arrows
     let stroke: StrokeType = 'normal';
@@ -786,8 +824,9 @@ export class MermaidParser {
     // Calculate edge length from operator
     const length = this.calculateEdgeLength(operator, stroke);
 
-    // Generate consistent ID based on edge content
-    const edgeId = this.generateEdgeId(source, target, operator, text, stroke, arrowStart, arrowEnd);
+    // Use user-defined ID or generate one
+    const edgeId = userEdgeId || this.generateEdgeId(source, target, operator, text, stroke, arrowStart, arrowEnd);
+    const isUserDefinedId = !!userEdgeId;
 
     const edge: EdgeData = {
       id: edgeId,
@@ -798,6 +837,7 @@ export class MermaidParser {
       arrowStart,
       arrowEnd,
       length,
+      isUserDefinedId,
     };
 
     ctx.edges.push(edge);
