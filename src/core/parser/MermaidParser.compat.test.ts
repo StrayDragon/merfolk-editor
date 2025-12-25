@@ -245,11 +245,9 @@ describe('Mermaid Flowchart 兼容性测试', () => {
 
   describe('5. [待实现] 边长度控制', () => {
 
-    it.skip('5.4 多破折号应增加边长度', () => {
+    it('5.4 多破折号应增加边长度', () => {
       const model = parser.parse('flowchart TD\n  A ---> B\n  A ----> C');
-      // @ts-expect-error length 属性待添加
       expect(model.edges[0].length).toBe(2);
-      // @ts-expect-error length 属性待添加
       expect(model.edges[1].length).toBe(3);
     });
   });

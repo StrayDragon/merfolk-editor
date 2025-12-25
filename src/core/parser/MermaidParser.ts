@@ -55,36 +55,36 @@ const EDGE_PATTERNS: Array<{
   // Invisible edge (must be first to avoid matching as normal)
   { pattern: /^~~~$/, stroke: 'invisible', arrowStart: 'none', arrowEnd: 'none', hasText: false },
 
-  // Thick lines
-  { pattern: /^<==>$/, stroke: 'thick', arrowStart: 'arrow', arrowEnd: 'arrow', hasText: false },
-  { pattern: /^==>$/, stroke: 'thick', arrowStart: 'none', arrowEnd: 'arrow', hasText: false },
+  // Thick lines (variable length: ==, ===, ====, etc.)
+  { pattern: /^<={2,}>$/, stroke: 'thick', arrowStart: 'arrow', arrowEnd: 'arrow', hasText: false },
+  { pattern: /^={2,}>$/, stroke: 'thick', arrowStart: 'none', arrowEnd: 'arrow', hasText: false },
   { pattern: /^<==\|(.+?)\|==>$/, stroke: 'thick', arrowStart: 'arrow', arrowEnd: 'arrow', hasText: true },
   { pattern: /^==\|(.+?)\|==>$/, stroke: 'thick', arrowStart: 'none', arrowEnd: 'arrow', hasText: true },
   { pattern: /^==(.+?)==>$/, stroke: 'thick', arrowStart: 'none', arrowEnd: 'arrow', hasText: true },
-  { pattern: /^===?$/, stroke: 'thick', arrowStart: 'none', arrowEnd: 'none', hasText: false },
+  { pattern: /^={2,}$/, stroke: 'thick', arrowStart: 'none', arrowEnd: 'none', hasText: false },
 
-  // Dotted lines
-  { pattern: /^<-.->$/, stroke: 'dotted', arrowStart: 'arrow', arrowEnd: 'arrow', hasText: false },
-  { pattern: /^-.->$/, stroke: 'dotted', arrowStart: 'none', arrowEnd: 'arrow', hasText: false },
+  // Dotted lines (variable length: -., -.., -..., etc.)
+  { pattern: /^<-\.+->$/, stroke: 'dotted', arrowStart: 'arrow', arrowEnd: 'arrow', hasText: false },
+  { pattern: /^-\.+->$/, stroke: 'dotted', arrowStart: 'none', arrowEnd: 'arrow', hasText: false },
   { pattern: /^-.-\|(.+?)\|-.->$/, stroke: 'dotted', arrowStart: 'none', arrowEnd: 'arrow', hasText: true },
   { pattern: /^-\.(.+?)\.-?>$/, stroke: 'dotted', arrowStart: 'none', arrowEnd: 'arrow', hasText: true },
-  { pattern: /^-\.-?$/, stroke: 'dotted', arrowStart: 'none', arrowEnd: 'none', hasText: false },
+  { pattern: /^-\.+-?$/, stroke: 'dotted', arrowStart: 'none', arrowEnd: 'none', hasText: false },
 
   // Normal lines with text
   { pattern: /^<--\|(.+?)\|-->$/, stroke: 'normal', arrowStart: 'arrow', arrowEnd: 'arrow', hasText: true },
   { pattern: /^--\|(.+?)\|-->$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'arrow', hasText: true },
   { pattern: /^--(.+?)-->$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'arrow', hasText: true },
 
-  // Circle and cross arrows (must come before ---? to avoid premature matching)
+  // Circle and cross arrows (must come before variable-length patterns)
   { pattern: /^--o$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'circle', hasText: false },
   { pattern: /^o--o$/, stroke: 'normal', arrowStart: 'circle', arrowEnd: 'circle', hasText: false },
   { pattern: /^--x$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'cross', hasText: false },
   { pattern: /^x--x$/, stroke: 'normal', arrowStart: 'cross', arrowEnd: 'cross', hasText: false },
 
-  // Normal lines without text
-  { pattern: /^<-->$/, stroke: 'normal', arrowStart: 'arrow', arrowEnd: 'arrow', hasText: false },
-  { pattern: /^-->$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'arrow', hasText: false },
-  { pattern: /^---?$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'none', hasText: false },
+  // Normal lines without text (variable length: --, ---, ----, etc.)
+  { pattern: /^<-+>$/, stroke: 'normal', arrowStart: 'arrow', arrowEnd: 'arrow', hasText: false },
+  { pattern: /^-{2,}>$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'arrow', hasText: false },
+  { pattern: /^-{2,}$/, stroke: 'normal', arrowStart: 'none', arrowEnd: 'none', hasText: false },
 ];
 
 /**
@@ -534,9 +534,10 @@ export class MermaidParser {
 
     // Fall back to standard edge regex
     // Matches: -->, -->|text|, ==>, ==>|text|, -.->, -.->|text|, ~~~, etc.
-    // Note: Order matters! --o, --x, o--o, x--x must come before ---? to avoid premature matching
+    // Note: Order matters! Long patterns must come before short ones
     // ~~~ is invisible edge (no text support)
-    const edgeRegex = /(~~~|<==?>|<==>|==?>|===?|<-\.->|-\.->|-\.-?|<-->|-->|o--o|x--x|--o|--x|---?)(\|[^|]+\|)?/g;
+    // Support variable length: --> (1), ---> (2), ----> (3), etc.
+    const edgeRegex = /(~~~|<-+>|<={2,}>|={2,}>|={2,}|<-\.+->|-\.+->|-\.+-?|o--o|x--x|--o|--x|-{2,}>|-{2,})(\|[^|]+\|)?/g;
 
     let lastIndex = 0;
     let match;
@@ -782,6 +783,9 @@ export class MermaidParser {
       }
     }
 
+    // Calculate edge length from operator
+    const length = this.calculateEdgeLength(operator, stroke);
+
     // Generate consistent ID based on edge content
     const edgeId = this.generateEdgeId(source, target, operator, text, stroke, arrowStart, arrowEnd);
 
@@ -793,9 +797,48 @@ export class MermaidParser {
       stroke,
       arrowStart,
       arrowEnd,
+      length,
     };
 
     ctx.edges.push(edge);
+  }
+
+  /**
+   * Calculate edge length from operator
+   * --> = 1, ---> = 2, ----> = 3
+   * ==> = 1, ===> = 2, ====> = 3
+   * -.-> = 1, -..-> = 2, -...-> = 3
+   */
+  private calculateEdgeLength(operator: string, stroke: StrokeType): number {
+    if (stroke === 'invisible') {
+      return 1;
+    }
+
+    // Count the dash/equal/dot characters
+    if (stroke === 'thick') {
+      // Count = characters
+      const matches = operator.match(/=+/g);
+      if (matches) {
+        const maxLen = Math.max(...matches.map((m) => m.length));
+        return Math.max(1, maxLen - 1);
+      }
+    } else if (stroke === 'dotted') {
+      // Count . characters between - and ->
+      const matches = operator.match(/\.+/g);
+      if (matches) {
+        const maxLen = Math.max(...matches.map((m) => m.length));
+        return Math.max(1, maxLen);
+      }
+    } else {
+      // Normal: count - characters
+      const matches = operator.match(/-+/g);
+      if (matches) {
+        const maxLen = Math.max(...matches.map((m) => m.length));
+        return Math.max(1, maxLen - 1);
+      }
+    }
+
+    return 1;
   }
 
   /**

@@ -15,6 +15,10 @@ export interface EdgeData {
   cssClasses?: string[];
   animate?: boolean;
   animation?: 'fast' | 'slow';
+  /** Edge length (number of dashes: --> = 1, ---> = 2, ----> = 3) */
+  length?: number;
+  /** Whether the ID was explicitly defined by user (e.g., e1@-->) */
+  isUserDefinedId?: boolean;
 }
 
 /**
@@ -32,6 +36,8 @@ export class FlowEdge implements EdgeData {
   cssClasses: string[];
   animate?: boolean;
   animation?: 'fast' | 'slow';
+  length?: number;
+  isUserDefinedId?: boolean;
 
   /** Runtime computed path points from layout */
   points?: Position[];
@@ -48,6 +54,8 @@ export class FlowEdge implements EdgeData {
     this.cssClasses = data.cssClasses ? [...data.cssClasses] : [];
     this.animate = data.animate;
     this.animation = data.animation;
+    this.length = data.length;
+    this.isUserDefinedId = data.isUserDefinedId;
   }
 
   /**
@@ -66,6 +74,8 @@ export class FlowEdge implements EdgeData {
       cssClasses: [...this.cssClasses],
       animate: this.animate,
       animation: this.animation,
+      length: this.length,
+      isUserDefinedId: this.isUserDefinedId,
     });
     edge.points = this.points ? this.points.map((p) => ({ ...p })) : undefined;
     return edge;
@@ -87,6 +97,8 @@ export class FlowEdge implements EdgeData {
       cssClasses: [...this.cssClasses],
       animate: this.animate,
       animation: this.animation,
+      length: this.length,
+      isUserDefinedId: this.isUserDefinedId,
     };
   }
 }
