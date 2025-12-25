@@ -252,17 +252,28 @@ describe('Mermaid Flowchart 兼容性测试', () => {
     });
   });
 
-  describe('5. [待实现] 新形状语法 @{}', () => {
+  describe('5. 新形状语法 @{}', () => {
 
-    it.skip('5.5 @{ shape: rect } 应解析为矩形', () => {
+    it('5.5 @{ shape: rect } 应解析为矩形', () => {
       const model = parser.parse('flowchart TD\n  A@{ shape: rect, label: "Process" }');
       expect(model.getNode('A')?.shape).toBe('rect');
       expect(model.getNode('A')?.text).toBe('Process');
     });
 
-    it.skip('5.6 @{ shape: doc } 应解析为文档形状', () => {
+    it('5.6 @{ shape: doc } 应解析为文档形状', () => {
       const model = parser.parse('flowchart TD\n  A@{ shape: doc, label: "Document" }');
       expect(model.getNode('A')?.shape).toBe('doc');
+    });
+
+    it('5.7 形状别名解析', () => {
+      const model = parser.parse('flowchart TD\n  A@{ shape: database }');
+      expect(model.getNode('A')?.shape).toBe('cylinder');
+    });
+
+    it('5.8 带图标属性', () => {
+      const model = parser.parse('flowchart TD\n  A@{ shape: icon, icon: "fa:user", label: "User" }');
+      expect(model.getNode('A')?.shape).toBe('icon');
+      expect(model.getNode('A')?.icon).toBe('fa:user');
     });
   });
 

@@ -3,6 +3,7 @@ import type { NodeData } from '../model/Node';
 import type { EdgeData } from '../model/Edge';
 import type { SubGraphData } from '../model/SubGraph';
 import type { Direction, ShapeType, StrokeType, ArrowType } from '../model/types';
+import { SHAPE_ALIASES } from '../model/types';
 
 /**
  * Parse context for tracking state during parsing
@@ -432,6 +433,18 @@ export class MermaidParser {
    * Parse a node part and return its ID
    */
   private parseNodePart(content: string, ctx: ParseContext): string {
+    // First, try new @{} syntax: id@{ shape: xxx, label: "..." }
+    const atSyntaxMatch = content.match(/^(\S+?)@\{(.+?)\}$/);
+    if (atSyntaxMatch) {
+      const id = atSyntaxMatch[1];
+      const propsStr = atSyntaxMatch[2];
+      const parsed = this.parseAtProperties(propsStr);
+      const shape = this.resolveShapeAlias(parsed.shape || 'rect');
+      const text = parsed.label || id;
+      this.ensureNode(id, text, shape, ctx, parsed);
+      return id;
+    }
+
     // Try to match node with shape: id[text] or id(text) etc.
     for (const { start, end, shape } of SHAPE_PATTERNS) {
       const escapedStart = this.escapeRegex(start);
@@ -455,6 +468,40 @@ export class MermaidParser {
       this.ensureNode(id, id, 'rect', ctx);
     }
     return id;
+  }
+
+  /**
+   * Parse @{} property string into an object
+   * e.g., "shape: rect, label: 'Hello'" -> { shape: 'rect', label: 'Hello' }
+   */
+  private parseAtProperties(propsStr: string): Record<string, string> {
+    const result: Record<string, string> = {};
+
+    // Split by comma (but not commas inside quotes)
+    const parts = propsStr.match(/[^,]+(?:["'][^"']*["'][^,]*)?/g) || [];
+
+    for (const part of parts) {
+      const colonIndex = part.indexOf(':');
+      if (colonIndex === -1) continue;
+
+      const key = part.substring(0, colonIndex).trim();
+      let value = part.substring(colonIndex + 1).trim();
+
+      // Remove surrounding quotes
+      value = this.unquoteText(value);
+
+      result[key] = value;
+    }
+
+    return result;
+  }
+
+  /**
+   * Resolve shape alias to canonical shape name
+   */
+  private resolveShapeAlias(shape: string): ShapeType {
+    const normalized = shape.toLowerCase().trim();
+    return (SHAPE_ALIASES[normalized] as ShapeType) || (normalized as ShapeType);
   }
 
   /**
@@ -488,7 +535,8 @@ export class MermaidParser {
     id: string,
     text: string,
     shape: ShapeType,
-    ctx: ParseContext
+    ctx: ParseContext,
+    extraProps?: Record<string, string>
   ): void {
     if (!ctx.nodes.has(id)) {
       const node: NodeData = {
@@ -497,6 +545,16 @@ export class MermaidParser {
         shape,
         cssClasses: [],
       };
+
+      // Handle extra properties from @{} syntax
+      if (extraProps) {
+        if (extraProps.icon) node.icon = extraProps.icon;
+        if (extraProps.img) node.img = extraProps.img;
+        if (extraProps.w) node.width = parseInt(extraProps.w);
+        if (extraProps.h) node.height = parseInt(extraProps.h);
+        if (extraProps.form) node.form = extraProps.form;
+        if (extraProps.pos) node.pos = extraProps.pos as 't' | 'b';
+      }
 
       // Add to current subgraph if any
       if (ctx.subGraphStack.length > 0) {
@@ -514,6 +572,16 @@ export class MermaidParser {
       const existing = ctx.nodes.get(id)!;
       if (text !== id) existing.text = text;
       if (shape !== 'rect') existing.shape = shape;
+
+      // Merge extra properties
+      if (extraProps) {
+        if (extraProps.icon) existing.icon = extraProps.icon;
+        if (extraProps.img) existing.img = extraProps.img;
+        if (extraProps.w) existing.width = parseInt(extraProps.w);
+        if (extraProps.h) existing.height = parseInt(extraProps.h);
+        if (extraProps.form) existing.form = extraProps.form;
+        if (extraProps.pos) existing.pos = extraProps.pos as 't' | 'b';
+      }
     }
   }
 

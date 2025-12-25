@@ -15,6 +15,22 @@ export interface NodeData {
   linkTarget?: '_self' | '_blank' | '_parent' | '_top';
   tooltip?: string;
   parentId?: string;
+  /** X position override for drag */
+  x?: number;
+  /** Y position override for drag */
+  y?: number;
+  /** Icon for icon shape (FontAwesome, etc.) */
+  icon?: string;
+  /** Image URL for image shape */
+  img?: string;
+  /** Icon/image form: square, rounded, circle */
+  form?: string;
+  /** Label position: t (top), b (bottom) */
+  pos?: 't' | 'b';
+  /** Custom width */
+  width?: number;
+  /** Custom height */
+  height?: number;
 }
 
 /**
@@ -32,6 +48,14 @@ export class FlowNode implements NodeData {
   linkTarget?: '_self' | '_blank' | '_parent' | '_top';
   tooltip?: string;
   parentId?: string;
+  x?: number;
+  y?: number;
+  icon?: string;
+  img?: string;
+  form?: string;
+  pos?: 't' | 'b';
+  width?: number;
+  height?: number;
 
   /** Runtime computed bounds from layout */
   private _computedBounds?: BoundingBox;
@@ -48,6 +72,14 @@ export class FlowNode implements NodeData {
     this.linkTarget = data.linkTarget;
     this.tooltip = data.tooltip;
     this.parentId = data.parentId;
+    this.x = data.x;
+    this.y = data.y;
+    this.icon = data.icon;
+    this.img = data.img;
+    this.form = data.form;
+    this.pos = data.pos;
+    this.width = data.width;
+    this.height = data.height;
   }
 
   /**
@@ -88,6 +120,14 @@ export class FlowNode implements NodeData {
       linkTarget: this.linkTarget,
       tooltip: this.tooltip,
       parentId: this.parentId,
+      x: this.x,
+      y: this.y,
+      icon: this.icon,
+      img: this.img,
+      form: this.form,
+      pos: this.pos,
+      width: this.width,
+      height: this.height,
     });
     node._computedBounds = this._computedBounds
       ? { ...this._computedBounds }
@@ -111,6 +151,14 @@ export class FlowNode implements NodeData {
       linkTarget: this.linkTarget,
       tooltip: this.tooltip,
       parentId: this.parentId,
+      x: this.x,
+      y: this.y,
+      icon: this.icon,
+      img: this.img,
+      form: this.form,
+      pos: this.pos,
+      width: this.width,
+      height: this.height,
     };
   }
 }
