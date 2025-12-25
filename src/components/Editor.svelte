@@ -275,11 +275,36 @@
     arrowType: ArrowType
   ): void {
     try {
-      syncEngine.addEdge(sourceId, targetId, text || undefined, stroke, arrowType);
+      // 特殊情况：创建新节点并连接
+      if (targetId === '__new__') {
+        // 生成新节点 ID
+        const newNodeId = generateNewNodeId();
+        // 先创建新节点
+        syncEngine.addNode(newNodeId, '新节点', 'rect');
+        // 然后添加边
+        syncEngine.addEdge(sourceId, newNodeId, text || undefined, stroke, arrowType);
+      } else {
+        syncEngine.addEdge(sourceId, targetId, text || undefined, stroke, arrowType);
+      }
     } catch (error) {
       console.error('[Editor] Failed to add edge:', error);
     }
     edgeDialogState = null;
+  }
+
+  /**
+   * 生成新节点 ID
+   */
+  function generateNewNodeId(): string {
+    const existingIds = syncEngine.getNodesForEdgeDialog().map(n => n.id);
+    // 生成一个简单的字母 ID (A, B, C, ... Z, AA, AB, ...)
+    let id = 'N1';
+    let counter = 1;
+    while (existingIds.includes(id)) {
+      counter++;
+      id = `N${counter}`;
+    }
+    return id;
   }
 
   /**

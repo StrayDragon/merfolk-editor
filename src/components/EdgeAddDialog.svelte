@@ -12,11 +12,14 @@
     sourceNodeId: string;
     /** 所有可选节点 */
     nodes: NodeOption[];
-    /** 确认回调 */
+    /** 确认回调 - targetId 为 '__new__' 表示创建新节点 */
     onConfirm: (sourceId: string, targetId: string, text: string, stroke: StrokeType, arrowType: ArrowType) => void;
     /** 取消回调 */
     onCancel: () => void;
   }
+
+  // 特殊 ID 表示创建新节点
+  const NEW_NODE_ID = '__new__';
 
   let { sourceNodeId, nodes, onConfirm, onCancel }: Props = $props();
 
@@ -97,12 +100,16 @@
           <span class="line">{strokeOptions.find(s => s.value === strokeType)?.preview}</span>
           <span class="arrow">{arrowOptions.find(a => a.value === arrowType)?.preview}</span>
         </div>
-        <div class="node-preview target" class:empty={!targetNodeId}>
-          <span class="node-icon">◎</span>
+        <div class="node-preview target" class:empty={!targetNodeId} class:new-node={targetNodeId === NEW_NODE_ID}>
+          <span class="node-icon">{targetNodeId === NEW_NODE_ID ? '✨' : '◎'}</span>
           <span class="node-name">
-            {targetNodeId
-              ? (targetNodes.find(n => n.id === targetNodeId)?.text || targetNodeId)
-              : '选择目标节点'}
+            {#if !targetNodeId}
+              选择目标节点
+            {:else if targetNodeId === NEW_NODE_ID}
+              新节点
+            {:else}
+              {targetNodes.find(n => n.id === targetNodeId)?.text || targetNodeId}
+            {/if}
           </span>
         </div>
       </div>
@@ -115,6 +122,8 @@
           bind:value={targetNodeId}
         >
           <option value="">-- 选择目标节点 --</option>
+          <option value={NEW_NODE_ID} class="new-node-option">✨ 新节点（自动创建）</option>
+          <option disabled>────────────</option>
           {#each targetNodes as node}
             <option value={node.id}>{node.text} ({node.id})</option>
           {/each}
@@ -289,6 +298,12 @@
     border-color: #e0e0e0;
     border-style: dashed;
     color: #999;
+  }
+
+  .node-preview.target.new-node {
+    background: #e8f5e9;
+    border-color: #81c784;
+    color: #2e7d32;
   }
 
   .node-icon {
