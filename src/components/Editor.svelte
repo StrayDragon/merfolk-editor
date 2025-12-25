@@ -205,6 +205,32 @@
   }
 
   /**
+   * 删除边
+   */
+  function handleDeleteEdge(edgeId: string, _sourceId: string, _targetId: string): void {
+    try {
+      syncEngine.removeEdge(edgeId);
+    } catch (error) {
+      console.error('[Editor] Failed to delete edge:', error);
+    }
+  }
+
+  /**
+   * 编辑边文本（打开对话框）
+   */
+  function handleEditEdge(edgeId: string, _sourceId: string, _targetId: string, currentText?: string): void {
+    // 使用简单的 prompt 对话框临时实现
+    const newText = prompt('编辑连接文本:', currentText || '');
+    if (newText !== null) {
+      try {
+        syncEngine.updateEdgeText(edgeId, newText);
+      } catch (error) {
+        console.error('[Editor] Failed to update edge text:', error);
+      }
+    }
+  }
+
+  /**
    * 添加节点（从画布右键菜单触发）
    */
   function handleAddNode(x: number, y: number, shape: ShapeType = 'rect'): void {
@@ -372,6 +398,8 @@
         onAddNode={handleAddNode}
         onEditNode={handleEditNode}
         onAddEdge={handleAddEdge}
+        onDeleteEdge={handleDeleteEdge}
+        onEditEdge={handleEditEdge}
         onEditStart={handleCanvasEditStart}
         onEditEnd={handleCanvasEditEnd}
       />

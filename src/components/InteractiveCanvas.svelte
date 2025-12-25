@@ -31,6 +31,10 @@
     onEditNode?: (nodeId: string) => void;
     /** 添加边回调 */
     onAddEdge?: (sourceNodeId: string) => void;
+    /** 删除边回调 */
+    onDeleteEdge?: (edgeId: string, sourceId: string, targetId: string) => void;
+    /** 编辑边回调 */
+    onEditEdge?: (edgeId: string, sourceId: string, targetId: string, currentText?: string) => void;
     /** 画布编辑开始回调 */
     onEditStart?: () => void;
     /** 画布编辑结束回调 */
@@ -52,6 +56,8 @@
     onAddNode,
     onEditNode,
     onAddEdge,
+    onDeleteEdge,
+    onEditEdge,
     onEditStart,
     onEditEnd,
     showGrid = true,
@@ -423,6 +429,12 @@
       path.addEventListener('click', (e) => {
         e.stopPropagation();
         selectEdge(edgeInfo.id);
+      });
+
+      // 双击边编辑标签
+      path.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        onEditEdge?.(edgeInfo.id, edgeInfo.sourceId, edgeInfo.targetId, edgeInfo.labelText);
       });
 
       // 边的右键菜单
@@ -1438,17 +1450,30 @@
    * 键盘事件处理
    */
   function handleKeyDown(event: KeyboardEvent): void {
-    // Delete 或 Backspace 删除选中的节点（支持批量删除）
-    if ((event.key === 'Delete' || event.key === 'Backspace') && selectedNodeIds.size > 0) {
+    // Delete 或 Backspace 删除选中的节点或边
+    if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault();
-      // 批量删除所有选中的节点
-      const nodesToDelete = Array.from(selectedNodeIds);
-      for (const nodeId of nodesToDelete) {
-        onDeleteNode?.(nodeId);
+      
+      // 优先删除选中的边
+      if (selectedEdgeId) {
+        const edge = edgeInfoList.find(e => e.id === selectedEdgeId);
+        if (edge) {
+          onDeleteEdge?.(edge.id, edge.sourceId, edge.targetId);
+        }
+        selectEdge(null);
+        return;
       }
-      clearAllSelections();
-      selectedNodeId = null;
-      onNodeSelect?.(null);
+      
+      // 删除选中的节点（支持批量删除）
+      if (selectedNodeIds.size > 0) {
+        const nodesToDelete = Array.from(selectedNodeIds);
+        for (const nodeId of nodesToDelete) {
+          onDeleteNode?.(nodeId);
+        }
+        clearAllSelections();
+        selectedNodeId = null;
+        onNodeSelect?.(null);
+      }
     }
 
     // Escape 取消选择
@@ -1805,14 +1830,18 @@
         break;
       case 'edit-edge':
         if (selectedEdgeId) {
-          // TODO: 实现边文本编辑
-          logger.info('Edit edge:', selectedEdgeId);
+          const edge = edgeInfoList.find(e => e.id === selectedEdgeId);
+          if (edge) {
+            onEditEdge?.(edge.id, edge.sourceId, edge.targetId, edge.labelText);
+          }
         }
         break;
       case 'delete-edge':
         if (selectedEdgeId) {
-          // TODO: 实现边删除
-          logger.info('Delete edge:', selectedEdgeId);
+          const edge = edgeInfoList.find(e => e.id === selectedEdgeId);
+          if (edge) {
+            onDeleteEdge?.(edge.id, edge.sourceId, edge.targetId);
+          }
           selectEdge(null);
         }
         break;

@@ -207,6 +207,18 @@ export class SyncEngine {
   }
 
   /**
+   * 更新边文本
+   */
+  updateEdgeText(edgeId: string, text: string): void {
+    this.saveToHistory();
+    const edge = this.model.getEdge(edgeId);
+    if (edge) {
+      edge.text = text || undefined;
+      this.debouncedSerialize();
+    }
+  }
+
+  /**
    * 获取所有节点信息（用于边添加对话框）
    */
   getNodesForEdgeDialog(): { id: string; text: string }[] {
