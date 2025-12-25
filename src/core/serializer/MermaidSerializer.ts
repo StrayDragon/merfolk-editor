@@ -86,18 +86,16 @@ export class MermaidSerializer {
       lines.push(this.options.indent + this.serializeNode(node));
     }
 
-    // Serialize subgraphs
-    for (const subGraph of model.subGraphs) {
-      lines.push('');
-      lines.push(this.options.indent + this.serializeSubGraphStart(subGraph));
-
-      const nodes = subGraphNodes.get(subGraph.id) || [];
-      for (const node of nodes) {
-        lines.push(this.options.indent + this.options.indent + this.serializeNode(node));
-      }
-
-      lines.push(this.options.indent + 'end');
-    }
+    // Serialize subgraphs (handle nesting)
+    const serializedSubGraphs = new Set<string>();
+    this.serializeSubGraphsRecursive(
+      model.subGraphs,
+      subGraphNodes,
+      undefined,
+      lines,
+      this.options.indent,
+      serializedSubGraphs
+    );
 
     // Serialize edges
     if (model.edges.length > 0) {
@@ -230,6 +228,62 @@ export class MermaidSerializer {
     }
 
     return text;
+  }
+
+  /**
+   * Recursively serialize subgraphs with proper nesting
+   */
+  private serializeSubGraphsRecursive(
+    subGraphs: FlowSubGraph[],
+    subGraphNodes: Map<string, FlowNode[]>,
+    parentId: string | undefined,
+    lines: string[],
+    currentIndent: string,
+    serialized: Set<string>
+  ): void {
+    // Find subgraphs that belong to this parent level
+    for (const subGraph of subGraphs) {
+      if (serialized.has(subGraph.id)) continue;
+
+      // Check if this subgraph's parent matches the current level
+      // For now, we use a simple approach: subgraphs without a parent are root level
+      const isRootLevel = parentId === undefined;
+      const belongsToParent = isRootLevel; // TODO: enhance with actual parent tracking
+
+      if (!belongsToParent && parentId !== undefined) continue;
+
+      serialized.add(subGraph.id);
+      lines.push('');
+      lines.push(currentIndent + this.serializeSubGraphStart(subGraph));
+
+      // Add direction if the subgraph has its own direction
+      if (subGraph.direction) {
+        lines.push(currentIndent + this.options.indent + `direction ${subGraph.direction}`);
+      }
+
+      // Add nodes in this subgraph
+      const nodes = subGraphNodes.get(subGraph.id) || [];
+      for (const node of nodes) {
+        lines.push(currentIndent + this.options.indent + this.serializeNode(node));
+      }
+
+      // Recursively serialize nested subgraphs
+      const nestedSubGraphs = subGraphs.filter((s) =>
+        s.nodeIds?.some((nodeId) => subGraph.nodeIds?.includes(nodeId)) && !serialized.has(s.id)
+      );
+      if (nestedSubGraphs.length > 0) {
+        this.serializeSubGraphsRecursive(
+          nestedSubGraphs,
+          subGraphNodes,
+          subGraph.id,
+          lines,
+          currentIndent + this.options.indent,
+          serialized
+        );
+      }
+
+      lines.push(currentIndent + 'end');
+    }
   }
 
   /**

@@ -181,6 +181,12 @@ export class MermaidParser {
         continue;
       }
 
+      // Direction inside subgraph: direction TB/LR/etc.
+      if (line.startsWith('direction ')) {
+        this.parseDirectionStatement(line, ctx);
+        continue;
+      }
+
       // Class definition
       if (line.startsWith('classDef')) {
         this.parseClassDef(line, ctx);
@@ -222,9 +228,32 @@ export class MermaidParser {
         id,
         title,
         nodeIds: [],
-        direction: ctx.direction,
+        // Don't inherit direction - subgraph can have its own direction
       });
       ctx.subGraphStack.push(id);
+    }
+  }
+
+  /**
+   * Parse direction statement inside subgraph: direction TB/LR/etc.
+   */
+  private parseDirectionStatement(line: string, ctx: ParseContext): void {
+    const match = line.match(/^direction\s+(TB|BT|LR|RL|TD)/i);
+    if (match) {
+      let dir = match[1].toUpperCase() as Direction | 'TD';
+      if (dir === 'TD') dir = 'TB';
+
+      // If inside a subgraph, set the subgraph's direction
+      if (ctx.subGraphStack.length > 0) {
+        const currentSubGraphId = ctx.subGraphStack[ctx.subGraphStack.length - 1];
+        const subGraph = ctx.subGraphs.find((s) => s.id === currentSubGraphId);
+        if (subGraph) {
+          subGraph.direction = dir as Direction;
+        }
+      } else {
+        // Otherwise set the graph's direction
+        ctx.direction = dir as Direction;
+      }
     }
   }
 

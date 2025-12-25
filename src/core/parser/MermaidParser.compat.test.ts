@@ -318,13 +318,39 @@ describe('Mermaid Flowchart 兼容性测试', () => {
       expect(model.subGraphs[0].title).toBe('One Title');
     });
 
-    it.skip('6.3 [待实现] 子图内方向', () => {
+    it('6.3 子图内方向', () => {
       const model = parser.parse(`flowchart LR
         subgraph TOP
           direction TB
           A --> B
         end`);
       expect(model.subGraphs[0].direction).toBe('TB');
+    });
+
+    it('6.4 嵌套子图', () => {
+      const model = parser.parse(`flowchart TB
+        subgraph outer
+          subgraph inner
+            A --> B
+          end
+        end`);
+      expect(model.subGraphs.length).toBe(2);
+      expect(model.subGraphs.map(s => s.id)).toContain('outer');
+      expect(model.subGraphs.map(s => s.id)).toContain('inner');
+    });
+
+    it('6.5 子图各自独立方向', () => {
+      const model = parser.parse(`flowchart LR
+        subgraph one
+          direction TB
+          A --> B
+        end
+        subgraph two
+          direction RL
+          C --> D
+        end`);
+      expect(model.subGraphs.find(s => s.id === 'one')?.direction).toBe('TB');
+      expect(model.subGraphs.find(s => s.id === 'two')?.direction).toBe('RL');
     });
   });
 
