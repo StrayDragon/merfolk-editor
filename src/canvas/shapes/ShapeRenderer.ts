@@ -66,6 +66,37 @@ export class ShapeRenderer {
       case 'odd':
         this.renderOdd(group, width, height, fill, stroke, strokeWidth);
         break;
+      // Extended shapes (v11.3.0+)
+      case 'doc':
+        this.renderDocument(group, width, height, fill, stroke, strokeWidth);
+        break;
+      case 'notch-rect':
+        this.renderNotchRect(group, width, height, fill, stroke, strokeWidth);
+        break;
+      case 'triangle':
+        this.renderTriangle(group, width, height, fill, stroke, strokeWidth);
+        break;
+      case 'flip-triangle':
+        this.renderFlipTriangle(group, width, height, fill, stroke, strokeWidth);
+        break;
+      case 'bolt':
+        this.renderBolt(group, width, height, fill, stroke, strokeWidth);
+        break;
+      case 'hourglass':
+        this.renderHourglass(group, width, height, fill, stroke, strokeWidth);
+        break;
+      case 'delay':
+        this.renderDelay(group, width, height, fill, stroke, strokeWidth);
+        break;
+      case 'fork':
+        this.renderFork(group, width, height, fill, stroke, strokeWidth);
+        break;
+      case 'cross':
+        this.renderCross(group, width, height, fill, stroke, strokeWidth);
+        break;
+      case 'text':
+        // No border for text shape
+        break;
       case 'rect':
       default:
         this.renderRect(group, width, height, fill, stroke, strokeWidth);
@@ -398,6 +429,280 @@ export class ShapeRenderer {
       .attr('stroke', stroke)
       .attr('stroke-width', strokeWidth)
       .attr('class', 'node-shape');
+  }
+
+  // ==========================================
+  // Extended shapes (Mermaid v11.3.0+)
+  // ==========================================
+
+  /**
+   * Document shape - wavy bottom
+   */
+  private renderDocument(
+    group: d3.Selection<SVGGElement, unknown, null, undefined>,
+    width: number,
+    height: number,
+    fill: string,
+    stroke: string,
+    strokeWidth: number
+  ): void {
+    const waveHeight = height * 0.15;
+    const path = `
+      M ${-width / 2} ${-height / 2}
+      L ${width / 2} ${-height / 2}
+      L ${width / 2} ${height / 2 - waveHeight}
+      Q ${width / 4} ${height / 2} 0 ${height / 2 - waveHeight}
+      Q ${-width / 4} ${height / 2 - waveHeight * 2} ${-width / 2} ${height / 2 - waveHeight}
+      Z
+    `;
+
+    group
+      .append('path')
+      .attr('d', path)
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', strokeWidth)
+      .attr('class', 'node-shape');
+  }
+
+  /**
+   * Notched rectangle (card shape)
+   */
+  private renderNotchRect(
+    group: d3.Selection<SVGGElement, unknown, null, undefined>,
+    width: number,
+    height: number,
+    fill: string,
+    stroke: string,
+    strokeWidth: number
+  ): void {
+    const notch = Math.min(width, height) * 0.2;
+    const points = [
+      [-width / 2 + notch, -height / 2],
+      [width / 2, -height / 2],
+      [width / 2, height / 2],
+      [-width / 2, height / 2],
+      [-width / 2, -height / 2 + notch],
+    ];
+
+    group
+      .append('polygon')
+      .attr('points', points.map((p) => p.join(',')).join(' '))
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', strokeWidth)
+      .attr('class', 'node-shape');
+  }
+
+  /**
+   * Triangle shape
+   */
+  private renderTriangle(
+    group: d3.Selection<SVGGElement, unknown, null, undefined>,
+    width: number,
+    height: number,
+    fill: string,
+    stroke: string,
+    strokeWidth: number
+  ): void {
+    const points = [
+      [0, -height / 2],
+      [width / 2, height / 2],
+      [-width / 2, height / 2],
+    ];
+
+    group
+      .append('polygon')
+      .attr('points', points.map((p) => p.join(',')).join(' '))
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', strokeWidth)
+      .attr('class', 'node-shape');
+  }
+
+  /**
+   * Flipped triangle shape
+   */
+  private renderFlipTriangle(
+    group: d3.Selection<SVGGElement, unknown, null, undefined>,
+    width: number,
+    height: number,
+    fill: string,
+    stroke: string,
+    strokeWidth: number
+  ): void {
+    const points = [
+      [-width / 2, -height / 2],
+      [width / 2, -height / 2],
+      [0, height / 2],
+    ];
+
+    group
+      .append('polygon')
+      .attr('points', points.map((p) => p.join(',')).join(' '))
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', strokeWidth)
+      .attr('class', 'node-shape');
+  }
+
+  /**
+   * Lightning bolt shape
+   */
+  private renderBolt(
+    group: d3.Selection<SVGGElement, unknown, null, undefined>,
+    width: number,
+    height: number,
+    fill: string,
+    stroke: string,
+    strokeWidth: number
+  ): void {
+    const w = width / 2;
+    const h = height / 2;
+    const points = [
+      [-w * 0.2, -h],
+      [w * 0.6, -h],
+      [w * 0.1, 0],
+      [w * 0.8, 0],
+      [-w * 0.3, h],
+      [0, 0],
+      [-w * 0.5, 0],
+    ];
+
+    group
+      .append('polygon')
+      .attr('points', points.map((p) => p.join(',')).join(' '))
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', strokeWidth)
+      .attr('class', 'node-shape');
+  }
+
+  /**
+   * Hourglass shape
+   */
+  private renderHourglass(
+    group: d3.Selection<SVGGElement, unknown, null, undefined>,
+    width: number,
+    height: number,
+    fill: string,
+    stroke: string,
+    strokeWidth: number
+  ): void {
+    const points = [
+      [-width / 2, -height / 2],
+      [width / 2, -height / 2],
+      [0, 0],
+      [width / 2, height / 2],
+      [-width / 2, height / 2],
+      [0, 0],
+    ];
+
+    group
+      .append('polygon')
+      .attr('points', points.map((p) => p.join(',')).join(' '))
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', strokeWidth)
+      .attr('class', 'node-shape');
+  }
+
+  /**
+   * Delay shape (half-rounded rectangle)
+   */
+  private renderDelay(
+    group: d3.Selection<SVGGElement, unknown, null, undefined>,
+    width: number,
+    height: number,
+    fill: string,
+    stroke: string,
+    strokeWidth: number
+  ): void {
+    const r = height / 2;
+    const path = `
+      M ${-width / 2} ${-height / 2}
+      L ${width / 2 - r} ${-height / 2}
+      A ${r} ${r} 0 0 1 ${width / 2 - r} ${height / 2}
+      L ${-width / 2} ${height / 2}
+      Z
+    `;
+
+    group
+      .append('path')
+      .attr('d', path)
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', strokeWidth)
+      .attr('class', 'node-shape');
+  }
+
+  /**
+   * Fork/join shape (thick horizontal bar)
+   */
+  private renderFork(
+    group: d3.Selection<SVGGElement, unknown, null, undefined>,
+    width: number,
+    _height: number,
+    fill: string,
+    stroke: string,
+    strokeWidth: number
+  ): void {
+    const barHeight = 8;
+    group
+      .append('rect')
+      .attr('x', -width / 2)
+      .attr('y', -barHeight / 2)
+      .attr('width', width)
+      .attr('height', barHeight)
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', strokeWidth)
+      .attr('class', 'node-shape');
+  }
+
+  /**
+   * Crossed circle shape
+   */
+  private renderCross(
+    group: d3.Selection<SVGGElement, unknown, null, undefined>,
+    width: number,
+    height: number,
+    fill: string,
+    stroke: string,
+    strokeWidth: number
+  ): void {
+    const r = Math.min(width, height) / 2;
+
+    // Circle
+    group
+      .append('circle')
+      .attr('cx', 0)
+      .attr('cy', 0)
+      .attr('r', r)
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', strokeWidth)
+      .attr('class', 'node-shape');
+
+    // Cross lines
+    const crossR = r * 0.6;
+    group
+      .append('line')
+      .attr('x1', -crossR)
+      .attr('y1', -crossR)
+      .attr('x2', crossR)
+      .attr('y2', crossR)
+      .attr('stroke', stroke)
+      .attr('stroke-width', strokeWidth);
+
+    group
+      .append('line')
+      .attr('x1', crossR)
+      .attr('y1', -crossR)
+      .attr('x2', -crossR)
+      .attr('y2', crossR)
+      .attr('stroke', stroke)
+      .attr('stroke-width', strokeWidth);
   }
 
   /**
