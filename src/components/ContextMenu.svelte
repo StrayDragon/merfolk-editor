@@ -9,6 +9,101 @@
     separator?: boolean;
     /** 子菜单项 */
     children?: MenuItem[];
+    /** 自定义样式类 */
+    className?: string;
+  }
+
+  /**
+   * Context menu target types
+   */
+  export type ContextTarget =
+    | { type: 'node'; id: string }
+    | { type: 'edge'; id: string }
+    | { type: 'canvas'; position: { x: number; y: number } }
+    | { type: 'subgraph'; id: string };
+
+  /**
+   * Create menu items for a node
+   */
+  export function createNodeMenuItems(
+    _nodeId: string,
+    options: { canConnect?: boolean; canEdit?: boolean } = {}
+  ): MenuItem[] {
+    const { canConnect = true, canEdit = true } = options;
+    return [
+      { id: 'edit-node', label: '编辑节点', icon: '✏️', shortcut: 'E', disabled: !canEdit },
+      { id: 'duplicate-node', label: '复制节点', icon: '📋', shortcut: 'Ctrl+D' },
+      { id: 'connect-from', label: '从此连接', icon: '🔗', disabled: !canConnect },
+      { id: 'separator1', label: '', separator: true },
+      { id: 'bring-front', label: '置于顶层', icon: '⬆️' },
+      { id: 'send-back', label: '置于底层', icon: '⬇️' },
+      { id: 'separator2', label: '', separator: true },
+      { id: 'delete-node', label: '删除节点', icon: '🗑️', shortcut: 'Del', danger: true },
+    ];
+  }
+
+  /**
+   * Create menu items for an edge
+   */
+  export function createEdgeMenuItems(_edgeId: string): MenuItem[] {
+    return [
+      { id: 'edit-edge-text', label: '编辑文本', icon: '✏️' },
+      {
+        id: 'change-style',
+        label: '更改样式',
+        icon: '🎨',
+        children: [
+          { id: 'style-normal', label: '普通线' },
+          { id: 'style-dotted', label: '虚线' },
+          { id: 'style-thick', label: '粗线' },
+        ],
+      },
+      {
+        id: 'change-arrow',
+        label: '更改箭头',
+        icon: '➡️',
+        children: [
+          { id: 'arrow-end', label: '单向箭头 →' },
+          { id: 'arrow-both', label: '双向箭头 ↔' },
+          { id: 'arrow-none', label: '无箭头 —' },
+          { id: 'arrow-circle', label: '圆形端点 ○' },
+          { id: 'arrow-cross', label: '叉形端点 ✕' },
+        ],
+      },
+      { id: 'separator1', label: '', separator: true },
+      { id: 'delete-edge', label: '删除连接', icon: '🗑️', shortcut: 'Del', danger: true },
+    ];
+  }
+
+  /**
+   * Create menu items for canvas (empty area)
+   */
+  export function createCanvasMenuItems(): MenuItem[] {
+    return [
+      {
+        id: 'add-node',
+        label: '添加节点',
+        icon: '➕',
+        children: [
+          { id: 'add-node-rect', label: '矩形' },
+          { id: 'add-node-rounded', label: '圆角矩形' },
+          { id: 'add-node-stadium', label: '胶囊形' },
+          { id: 'add-node-circle', label: '圆形' },
+          { id: 'add-node-diamond', label: '菱形' },
+          { id: 'add-node-hexagon', label: '六边形' },
+          { id: 'separator', label: '', separator: true },
+          { id: 'add-node-doc', label: '文档' },
+          { id: 'add-node-cylinder', label: '数据库' },
+          { id: 'add-node-subroutine', label: '子程序' },
+        ],
+      },
+      { id: 'paste', label: '粘贴', icon: '📋', shortcut: 'Ctrl+V', disabled: true },
+      { id: 'separator1', label: '', separator: true },
+      { id: 'select-all', label: '全选', icon: '☑️', shortcut: 'Ctrl+A' },
+      { id: 'separator2', label: '', separator: true },
+      { id: 'fit-view', label: '适应视图', icon: '🔍' },
+      { id: 'reset-zoom', label: '重置缩放', icon: '🔄' },
+    ];
   }
 </script>
 

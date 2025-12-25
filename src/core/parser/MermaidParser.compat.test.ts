@@ -290,7 +290,7 @@ describe('Mermaid Flowchart 兼容性测试', () => {
       const model = parser.parse(`flowchart LR
         A e1@--> B
         e1@{ animate: true }`);
-      // @ts-expect-error animate 属性待添加
+      // @ts-ignore animate 属性待添加
       expect(model.edges[0].animate).toBe(true);
     });
   });
@@ -363,7 +363,7 @@ describe('Mermaid Flowchart 兼容性测试', () => {
       const model = parser.parse(`flowchart LR
         A --> B
         linkStyle 0 stroke:#ff3,stroke-width:4px`);
-      // @ts-expect-error style 属性待添加
+      // @ts-ignore style 属性待添加
       expect(model.edges[0].style).toBeDefined();
     });
   });

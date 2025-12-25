@@ -1,5 +1,5 @@
 // Command system for undo/redo
-export { Command, CompositeCommand } from './Command';
+export { type Command, CompositeCommand } from './Command';
 export { CommandHistory } from './CommandHistory';
 
 // Node commands

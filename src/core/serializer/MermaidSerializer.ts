@@ -2,7 +2,7 @@ import type { FlowchartModel } from '../model/FlowchartModel';
 import type { FlowNode } from '../model/Node';
 import type { FlowEdge } from '../model/Edge';
 import type { FlowSubGraph } from '../model/SubGraph';
-import type { ShapeType } from '../model/types';
+import type { ShapeType, LegacyShapeType } from '../model/types';
 
 /**
  * Serialization options
@@ -17,9 +17,9 @@ export interface SerializerOptions {
 }
 
 /**
- * Shape syntax mapping
+ * Legacy shape syntax mapping (bracket-based syntax)
  */
-const SHAPE_SYNTAX: Record<ShapeType, [string, string]> = {
+const LEGACY_SHAPE_SYNTAX: Record<LegacyShapeType, [string, string]> = {
   rect: ['[', ']'],
   rounded: ['(', ')'],
   stadium: ['([', '])'],
@@ -35,6 +35,13 @@ const SHAPE_SYNTAX: Record<ShapeType, [string, string]> = {
   lean_left: ['[\\', '/]'],
   odd: ['>', ']'],
 };
+
+/**
+ * Check if a shape is a legacy shape type
+ */
+function isLegacyShape(shape: ShapeType): shape is LegacyShapeType {
+  return shape in LEGACY_SHAPE_SYNTAX;
+}
 
 /**
  * Mermaid Flowchart Serializer
@@ -139,17 +146,59 @@ export class MermaidSerializer {
    * Serialize a single node
    */
   private serializeNode(node: FlowNode): string {
-    const [start, end] = SHAPE_SYNTAX[node.shape] || SHAPE_SYNTAX.rect;
-
     // If text equals id and shape is rect, just output id
     if (node.text === node.id && node.shape === 'rect') {
       return node.id;
     }
 
-    // Check if text needs quoting (contains special characters that might conflict with Mermaid syntax)
-    const text = this.formatNodeText(node.text, node.shape);
+    // Use legacy bracket syntax for legacy shapes
+    if (isLegacyShape(node.shape)) {
+      const [start, end] = LEGACY_SHAPE_SYNTAX[node.shape];
+      const text = this.formatNodeText(node.text, node.shape);
+      return `${node.id}${start}${text}${end}`;
+    }
 
-    return `${node.id}${start}${text}${end}`;
+    // Use new @{} syntax for extended shapes
+    return this.serializeNodeWithAtSyntax(node);
+  }
+
+  /**
+   * Serialize a node using the new @{} syntax
+   */
+  private serializeNodeWithAtSyntax(node: FlowNode): string {
+    const props: string[] = [];
+
+    props.push(`shape: ${node.shape}`);
+
+    if (node.text && node.text !== node.id) {
+      props.push(`label: "${node.text}"`);
+    }
+
+    if (node.icon) {
+      props.push(`icon: "${node.icon}"`);
+    }
+
+    if (node.img) {
+      props.push(`img: "${node.img}"`);
+    }
+
+    if (node.form) {
+      props.push(`form: "${node.form}"`);
+    }
+
+    if (node.pos) {
+      props.push(`pos: "${node.pos}"`);
+    }
+
+    if (node.width) {
+      props.push(`w: ${node.width}`);
+    }
+
+    if (node.height) {
+      props.push(`h: ${node.height}`);
+    }
+
+    return `${node.id}@{ ${props.join(', ')} }`;
   }
 
   /**
@@ -161,7 +210,9 @@ export class MermaidSerializer {
     const specialChars = /[\[\]{}()<>|\\\/\n\r"#]/;
 
     // Get the shape delimiters to check for conflicts
-    const [start, end] = SHAPE_SYNTAX[shape] || SHAPE_SYNTAX.rect;
+    const [start, end] = isLegacyShape(shape)
+      ? LEGACY_SHAPE_SYNTAX[shape]
+      : LEGACY_SHAPE_SYNTAX.rect;
 
     // Check if text contains any delimiter characters or special chars
     const needsEscaping = specialChars.test(text) ||
