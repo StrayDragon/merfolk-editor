@@ -1491,25 +1491,35 @@
 
   /**
    * 获取选中节点的边界信息（用于 NodeOverlay）
+   * 返回的是相对于容器的屏幕坐标
    */
   function getSelectedNodeBounds(): { x: number; y: number; width: number; height: number } | null {
-    if (!selectedNodeId) return null;
+    if (!selectedNodeId || !containerEl) return null;
     const nodeInfo = nodeInfoMap.get(selectedNodeId);
     if (!nodeInfo) return null;
 
-    const bbox = nodeInfo.element.getBBox();
+    // 使用 getBoundingClientRect 获取节点在视口中的精确位置
+    const nodeRect = nodeInfo.element.getBoundingClientRect();
+    const containerRect = containerEl.getBoundingClientRect();
+
+    // 计算相对于容器的坐标
     return {
-      x: nodeInfo.x + bbox.x,
-      y: nodeInfo.y + bbox.y,
-      width: bbox.width,
-      height: bbox.height,
+      x: nodeRect.left - containerRect.left,
+      y: nodeRect.top - containerRect.top,
+      width: nodeRect.width,
+      height: nodeRect.height,
     };
   }
 
-  // 响应式获取选中节点边界
+  // 响应式获取选中节点边界（屏幕坐标）
+  // 注意：这里返回的已经是屏幕坐标，NodeOverlay 不需要再次转换
   const selectedNodeBounds = $derived.by(() => {
-    // 依赖 selectedNodeId 触发更新
+    // 依赖 selectedNodeId 和 scale/translate 触发更新
     if (!selectedNodeId) return null;
+    // 添加对 scale 和 translate 的依赖
+    void scale;
+    void translateX;
+    void translateY;
     return getSelectedNodeBounds();
   });
 
@@ -1706,9 +1716,6 @@
     <NodeOverlay
       nodeId={selectedNodeId}
       bounds={selectedNodeBounds}
-      {scale}
-      {translateX}
-      {translateY}
       onEdit={onEditNode}
       onDelete={onDeleteNode}
       onAddEdge={handleOverlayAddEdge}

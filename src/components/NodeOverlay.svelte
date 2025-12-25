@@ -2,20 +2,19 @@
   /**
    * NodeOverlay - 节点选中时的覆盖层
    * 包含：选择框、连接点(ports)、浮动工具栏
+   *
+   * 注意：bounds 传入的已经是屏幕坐标，不需要再进行转换
    */
   interface NodeBounds {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
+    x: number;      // 屏幕坐标 X
+    y: number;      // 屏幕坐标 Y
+    width: number;  // 屏幕宽度（已缩放）
+    height: number; // 屏幕高度（已缩放）
   }
 
   interface Props {
     nodeId: string;
-    bounds: NodeBounds;
-    scale: number;
-    translateX: number;
-    translateY: number;
+    bounds: NodeBounds; // 已经是屏幕坐标
     onEdit?: (nodeId: string) => void;
     onDelete?: (nodeId: string) => void;
     onAddEdge?: (nodeId: string, direction: 'top' | 'right' | 'bottom' | 'left') => void;
@@ -25,20 +24,17 @@
   let {
     nodeId,
     bounds,
-    scale,
-    translateX,
-    translateY,
     onEdit,
     onDelete,
     onAddEdge,
     onDuplicate,
   }: Props = $props();
 
-  // 计算屏幕坐标
-  const screenX = $derived(bounds.x * scale + translateX);
-  const screenY = $derived(bounds.y * scale + translateY);
-  const screenWidth = $derived(bounds.width * scale);
-  const screenHeight = $derived(bounds.height * scale);
+  // bounds 已经是屏幕坐标，直接使用
+  const screenX = $derived(bounds.x);
+  const screenY = $derived(bounds.y);
+  const screenWidth = $derived(bounds.width);
+  const screenHeight = $derived(bounds.height);
 
   // Port 位置（中心点）
   const ports = $derived([
