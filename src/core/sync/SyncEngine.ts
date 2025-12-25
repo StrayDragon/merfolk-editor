@@ -1,6 +1,7 @@
 import { MermaidParser } from '../parser/MermaidParser';
 import { MermaidSerializer } from '../serializer/MermaidSerializer';
 import { FlowchartModel, type FlowchartData } from '../model/FlowchartModel';
+import type { FlowEdge } from '../model/Edge';
 import type { ShapeType, StrokeType, ArrowType } from '../model/types';
 
 /**
@@ -207,6 +208,65 @@ export class SyncEngine {
   }
 
   /**
+   * 在边上插入节点
+   * 将 A --> B 变为 A --> NewNode --> B
+   */
+  insertNodeOnEdge(sourceId: string, targetId: string, shape: ShapeType = 'rect'): void {
+    this.saveToHistory();
+
+    // 找到原边
+    const originalEdge = this.model.edges.find(
+      e => e.source === sourceId && e.target === targetId
+    );
+    if (!originalEdge) {
+      console.warn('[SyncEngine] Edge not found:', sourceId, '->', targetId);
+      return;
+    }
+
+    // 生成新节点 ID
+    const newNodeId = this.generateUniqueNodeId();
+
+    // 创建新节点
+    this.model.addNode({
+      id: newNodeId,
+      text: '新节点',
+      shape,
+    });
+
+    // 创建两条新边：source -> newNode, newNode -> target
+    // 保留原边的 stroke 类型
+    this.model.addEdge({
+      source: sourceId,
+      target: newNodeId,
+      stroke: originalEdge.stroke,
+    });
+    this.model.addEdge({
+      source: newNodeId,
+      target: targetId,
+      stroke: originalEdge.stroke,
+    });
+
+    // 删除原边
+    this.model.removeEdge(originalEdge.id);
+
+    this.debouncedSerialize();
+  }
+
+  /**
+   * 生成唯一的节点 ID
+   */
+  private generateUniqueNodeId(): string {
+    const existingIds = new Set(this.model.nodes.map(n => n.id));
+    let counter = 1;
+    let newId = `N${counter}`;
+    while (existingIds.has(newId)) {
+      counter++;
+      newId = `N${counter}`;
+    }
+    return newId;
+  }
+
+  /**
    * 更新边文本
    */
   updateEdgeText(edgeId: string, text: string): void {
@@ -223,6 +283,13 @@ export class SyncEngine {
    */
   getNodesForEdgeDialog(): { id: string; text: string }[] {
     return this.model.nodes.map(n => ({ id: n.id, text: n.text }));
+  }
+
+  /**
+   * 通过源节点和目标节点获取边
+   */
+  getEdge(sourceId: string, targetId: string): FlowEdge | undefined {
+    return this.model.edges.find(e => e.source === sourceId && e.target === targetId);
   }
 
   /**

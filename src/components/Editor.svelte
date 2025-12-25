@@ -5,6 +5,7 @@
   import Toolbar from './Toolbar.svelte';
   import NodeEditDialog from './NodeEditDialog.svelte';
   import EdgeAddDialog from './EdgeAddDialog.svelte';
+  import EdgeEditDialog from './EdgeEditDialog.svelte';
   import { SyncEngine } from '../core/sync/SyncEngine';
   import type { ShapeType, StrokeType, ArrowType } from '$core/model/types';
 
@@ -39,6 +40,17 @@
   let edgeDialogState = $state<{
     visible: boolean;
     sourceNodeId: string;
+  } | null>(null);
+
+  // 边编辑对话框状态
+  let edgeEditDialogState = $state<{
+    visible: boolean;
+    edgeId: string;
+    sourceId: string;
+    targetId: string;
+    text: string;
+    stroke: StrokeType;
+    arrow: ArrowType;
   } | null>(null);
 
   // 同步引擎
@@ -216,18 +228,58 @@
   }
 
   /**
+   * 在边上插入节点
+   * 将 A --> B 变为 A --> NewNode --> B
+   */
+  function handleInsertNodeOnEdge(sourceId: string, targetId: string, shape: ShapeType): void {
+    try {
+      syncEngine.insertNodeOnEdge(sourceId, targetId, shape);
+    } catch (error) {
+      console.error('[Editor] Failed to insert node on edge:', error);
+    }
+  }
+
+  /**
    * 编辑边文本（打开对话框）
    */
-  function handleEditEdge(edgeId: string, _sourceId: string, _targetId: string, currentText?: string): void {
-    // 使用简单的 prompt 对话框临时实现
-    const newText = prompt('编辑连接文本:', currentText || '');
-    if (newText !== null) {
-      try {
-        syncEngine.updateEdgeText(edgeId, newText);
-      } catch (error) {
-        console.error('[Editor] Failed to update edge text:', error);
-      }
+  function handleEditEdge(edgeId: string, sourceId: string, targetId: string, currentText?: string): void {
+    // 获取边的当前属性
+    const edge = syncEngine.getEdge(sourceId, targetId);
+    edgeEditDialogState = {
+      visible: true,
+      edgeId,
+      sourceId,
+      targetId,
+      text: currentText || '',
+      stroke: edge?.stroke || 'normal',
+      arrow: edge?.arrowType || 'arrow',
+    };
+  }
+
+  /**
+   * 确认编辑边
+   */
+  function handleEditEdgeConfirm(
+    edgeId: string,
+    text: string,
+    stroke: StrokeType,
+    arrow: ArrowType
+  ): void {
+    try {
+      // 更新边文本
+      syncEngine.updateEdgeText(edgeId, text);
+      // TODO: 未来可扩展支持更新 stroke 和 arrow 类型
+    } catch (error) {
+      console.error('[Editor] Failed to update edge:', error);
     }
+    edgeEditDialogState = null;
+  }
+
+  /**
+   * 取消编辑边
+   */
+  function handleEditEdgeCancel(): void {
+    edgeEditDialogState = null;
   }
 
   /**
@@ -400,6 +452,7 @@
         onAddEdge={handleAddEdge}
         onDeleteEdge={handleDeleteEdge}
         onEditEdge={handleEditEdge}
+        onInsertNodeOnEdge={handleInsertNodeOnEdge}
         onEditStart={handleCanvasEditStart}
         onEditEnd={handleCanvasEditEnd}
       />
@@ -445,6 +498,20 @@
     nodes={syncEngine.getNodesForEdgeDialog()}
     onConfirm={handleAddEdgeConfirm}
     onCancel={handleAddEdgeCancel}
+  />
+{/if}
+
+<!-- 边编辑对话框 -->
+{#if edgeEditDialogState?.visible}
+  <EdgeEditDialog
+    edgeId={edgeEditDialogState.edgeId}
+    sourceId={edgeEditDialogState.sourceId}
+    targetId={edgeEditDialogState.targetId}
+    initialText={edgeEditDialogState.text}
+    initialStroke={edgeEditDialogState.stroke}
+    initialArrow={edgeEditDialogState.arrow}
+    onConfirm={handleEditEdgeConfirm}
+    onCancel={handleEditEdgeCancel}
   />
 {/if}
 

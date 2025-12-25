@@ -35,6 +35,8 @@
     onDeleteEdge?: (edgeId: string, sourceId: string, targetId: string) => void;
     /** 编辑边回调 */
     onEditEdge?: (edgeId: string, sourceId: string, targetId: string, currentText?: string) => void;
+    /** 在边上插入节点回调 */
+    onInsertNodeOnEdge?: (sourceId: string, targetId: string, shape: ShapeType) => void;
     /** 画布编辑开始回调 */
     onEditStart?: () => void;
     /** 画布编辑结束回调 */
@@ -58,6 +60,7 @@
     onAddEdge,
     onDeleteEdge,
     onEditEdge,
+    onInsertNodeOnEdge,
     onEditStart,
     onEditEnd,
     showGrid = true,
@@ -1453,7 +1456,7 @@
     // Delete 或 Backspace 删除选中的节点或边
     if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault();
-      
+
       // 优先删除选中的边
       if (selectedEdgeId) {
         const edge = edgeInfoList.find(e => e.id === selectedEdgeId);
@@ -1463,7 +1466,7 @@
         selectEdge(null);
         return;
       }
-      
+
       // 删除选中的节点（支持批量删除）
       if (selectedNodeIds.size > 0) {
         const nodesToDelete = Array.from(selectedNodeIds);
@@ -1716,6 +1719,72 @@
   }
 
   /**
+   * 获取选中边的屏幕坐标（用于工具栏定位）
+   * 返回边中点的位置
+   */
+  function getSelectedEdgeScreenPosition(): { x: number; y: number; edge: EdgeInfo } | null {
+    if (!selectedEdgeId || !containerEl) return null;
+    const edge = edgeInfoList.find(e => e.id === selectedEdgeId);
+    if (!edge) return null;
+
+    // 使用 getBoundingClientRect 获取边在视口中的位置
+    const edgeRect = edge.element.getBoundingClientRect();
+    const containerRect = containerEl.getBoundingClientRect();
+
+    // 计算边的中点位置
+    return {
+      x: edgeRect.left - containerRect.left + edgeRect.width / 2,
+      y: edgeRect.top - containerRect.top + edgeRect.height / 2,
+      edge,
+    };
+  }
+
+  /**
+   * 处理边工具栏的编辑按钮
+   */
+  function handleEdgeToolbarEdit(): void {
+    if (!selectedEdgeId) return;
+    const edge = edgeInfoList.find(e => e.id === selectedEdgeId);
+    if (edge) {
+      onEditEdge?.(edge.id, edge.sourceId, edge.targetId, edge.labelText);
+    }
+  }
+
+  /**
+   * 处理边工具栏的删除按钮
+   */
+  function handleEdgeToolbarDelete(): void {
+    if (!selectedEdgeId) return;
+    const edge = edgeInfoList.find(e => e.id === selectedEdgeId);
+    if (edge) {
+      onDeleteEdge?.(edge.id, edge.sourceId, edge.targetId);
+      selectEdge(null);
+    }
+  }
+
+  /**
+   * 在边上插入节点（常用形状快捷方式）
+   */
+  function handleInsertNodeOnEdge(shape: ShapeType): void {
+    if (!selectedEdgeId) return;
+    const edge = edgeInfoList.find(e => e.id === selectedEdgeId);
+    if (edge) {
+      onEditStart?.();
+      onInsertNodeOnEdge?.(edge.sourceId, edge.targetId, shape);
+      selectEdge(null);
+      onEditEnd?.();
+    }
+  }
+
+  // 快速插入节点的形状选项
+  const quickInsertShapes: { shape: ShapeType; icon: string; label: string }[] = [
+    { shape: 'rect', icon: '▭', label: '矩形' },
+    { shape: 'rounded', icon: '▢', label: '圆角' },
+    { shape: 'diamond', icon: '◇', label: '菱形' },
+    { shape: 'circle', icon: '○', label: '圆形' },
+  ];
+
+  /**
    * 右键菜单处理
    */
   function handleContextMenu(event: MouseEvent): void {
@@ -1932,6 +2001,51 @@
       </div>
     {/if}
   {/if}
+
+  <!-- 边选中时的浮动工具栏 -->
+  {#if selectedEdgeId}
+    {@const edgePos = getSelectedEdgeScreenPosition()}
+    {#if edgePos}
+      <div
+        class="edge-toolbar-container"
+        style="left: {edgePos.x}px; top: {edgePos.y}px;"
+      >
+        <!-- 上方：编辑和删除按钮 -->
+        <div class="edge-toolbar">
+          <button onclick={handleEdgeToolbarEdit} title="编辑文本 (双击)">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
+          <button onclick={handleEdgeToolbarDelete} title="删除 (Del)" class="danger">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+          </button>
+          {#if edgePos.edge.labelText}
+            <span class="edge-label-preview" title={edgePos.edge.labelText}>
+              "{edgePos.edge.labelText}"
+            </span>
+          {/if}
+        </div>
+        <!-- 下方：快速插入节点按钮 -->
+        <div class="quick-insert-bar">
+          <span class="quick-insert-label">插入节点:</span>
+          {#each quickInsertShapes as { shape, icon, label }}
+            <button
+              class="quick-insert-btn"
+              onclick={() => handleInsertNodeOnEdge(shape)}
+              title={`在此插入${label}节点`}
+            >
+              {icon}
+            </button>
+          {/each}
+        </div>
+      </div>
+    {/if}
+  {/if}
 </div>
 
 <!-- 右键菜单 -->
@@ -2058,6 +2172,105 @@
   .node-toolbar button.danger:hover {
     background: #fff5f5;
     color: #dc3545;
+  }
+
+  /* 边选中时的浮动工具栏容器 */
+  .edge-toolbar-container {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    z-index: 30;
+  }
+
+  /* 边选中时的浮动工具栏 */
+  .edge-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 6px;
+    background: #fff;
+    border: 1px solid #90caf9;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(25, 118, 210, 0.15);
+  }
+
+  .edge-toolbar button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #1976d2;
+    cursor: pointer;
+  }
+
+  .edge-toolbar button:hover {
+    background: #e3f2fd;
+  }
+
+  .edge-toolbar button.danger:hover {
+    background: #fff5f5;
+    color: #dc3545;
+  }
+
+  .edge-label-preview {
+    font-size: 11px;
+    color: #666;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 4px;
+    border-left: 1px solid #e0e0e0;
+    margin-left: 2px;
+  }
+
+  /* 快速插入节点栏 */
+  .quick-insert-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border: 1px solid #81c784;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(76, 175, 80, 0.15);
+  }
+
+  .quick-insert-label {
+    font-size: 10px;
+    color: #2e7d32;
+    font-weight: 500;
+    margin-right: 2px;
+  }
+
+  .quick-insert-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid #a5d6a7;
+    border-radius: 4px;
+    background: #fff;
+    color: #388e3c;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+
+  .quick-insert-btn:hover {
+    background: #c8e6c9;
+    border-color: #66bb6a;
+    transform: scale(1.1);
   }
 
   /* 节点悬停效果 */
