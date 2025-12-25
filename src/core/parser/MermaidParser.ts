@@ -208,6 +208,12 @@ export class MermaidParser {
         continue;
       }
 
+      // Link style statement: linkStyle 0 stroke:#ff3,stroke-width:4px
+      if (line.startsWith('linkStyle ')) {
+        this.parseLinkStyleStatement(line, ctx);
+        continue;
+      }
+
       // Link/click statement
       if (line.startsWith('click ')) {
         this.parseClickStatement(line, ctx);
@@ -250,6 +256,62 @@ export class MermaidParser {
         break;
       }
     }
+  }
+
+  /**
+   * Parse linkStyle statement: linkStyle 0 stroke:#ff3,stroke-width:4px
+   * Supports: linkStyle 0 ..., linkStyle 1,2 ..., linkStyle default ...
+   */
+  private parseLinkStyleStatement(line: string, ctx: ParseContext): void {
+    // Match: linkStyle 0 stroke:#ff3,stroke-width:4px
+    // or: linkStyle 1,2 stroke:#ff3
+    // or: linkStyle default stroke:#333
+    const match = line.match(/^linkStyle\s+([\d,\s]+|default)\s+(.+)$/);
+    if (!match) return;
+
+    const indexPart = match[1].trim();
+    const stylePart = match[2].trim();
+
+    // Parse style properties
+    const style: Record<string, string> = {};
+    stylePart.split(',').forEach((prop) => {
+      const colonIndex = prop.indexOf(':');
+      if (colonIndex !== -1) {
+        const key = prop.substring(0, colonIndex).trim();
+        const value = prop.substring(colonIndex + 1).trim();
+        style[key] = value;
+      }
+    });
+
+    // Apply to edges
+    if (indexPart === 'default') {
+      // Apply to all edges
+      for (const edge of ctx.edges) {
+        edge.style = { ...edge.style, ...this.convertToEdgeStyle(style) };
+      }
+    } else {
+      // Parse edge indices
+      const indices = indexPart.split(',').map((s) => parseInt(s.trim(), 10));
+      for (const index of indices) {
+        if (index >= 0 && index < ctx.edges.length) {
+          ctx.edges[index].style = { ...ctx.edges[index].style, ...this.convertToEdgeStyle(style) };
+        }
+      }
+    }
+  }
+
+  /**
+   * Convert CSS-style properties to EdgeStyle
+   */
+  private convertToEdgeStyle(style: Record<string, string>): { stroke?: string; strokeWidth?: number } {
+    const result: { stroke?: string; strokeWidth?: number } = {};
+    if (style.stroke) {
+      result.stroke = style.stroke;
+    }
+    if (style['stroke-width']) {
+      result.strokeWidth = parseInt(style['stroke-width'], 10);
+    }
+    return result;
   }
 
   /**

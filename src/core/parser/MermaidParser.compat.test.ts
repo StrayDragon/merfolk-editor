@@ -383,12 +383,13 @@ describe('Mermaid Flowchart 兼容性测试', () => {
       expect(model.getNode('B')?.cssClasses).toContain('someClass');
     });
 
-    it.skip('7.4 [待实现] linkStyle', () => {
+    it('7.4 linkStyle', () => {
       const model = parser.parse(`flowchart LR
         A --> B
         linkStyle 0 stroke:#ff3,stroke-width:4px`);
-      // @ts-ignore style 属性待添加
       expect(model.edges[0].style).toBeDefined();
+      expect(model.edges[0].style?.stroke).toBe('#ff3');
+      expect(model.edges[0].style?.strokeWidth).toBe(4);
     });
   });
 
