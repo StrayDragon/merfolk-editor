@@ -7,6 +7,7 @@
   import { interactiveCanvasLogger as logger } from '../lib/logger';
   import { CANVAS_PADDING, MIN_LABEL_DISTANCE, MAX_LABEL_DISTANCE } from '../core/constants';
   import ContextMenu, { type MenuItem } from './ContextMenu.svelte';
+  import NodeOverlay from './NodeOverlay.svelte';
 
   interface ContextMenuState {
     visible: boolean;
@@ -247,19 +248,22 @@
         initialY: y,
       });
 
-      // 添加拖拽功能并 register cleanup
-      const cleanupDrag = setupNodeDrag(nodeEl, nodeId);
-      cleanupFunctions.push(cleanupDrag);
-
-      // 添加点击选择（支持 Ctrl/Cmd 多选）
+      // 禁用拖拽 - 只有点击选择
+      // 点击选择（支持 Ctrl/Cmd 多选）
       nodeEl.addEventListener('click', (e) => {
         e.stopPropagation();
         const addToSelection = e.ctrlKey || e.metaKey;
         selectNode(nodeId, addToSelection);
       });
 
-      // 添加视觉反馈
-      nodeEl.style.cursor = 'move';
+      // 双击编辑
+      nodeEl.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        onEditNode?.(nodeId);
+      });
+
+      // 添加视觉反馈 - 改为指针（不再支持拖拽）
+      nodeEl.style.cursor = 'pointer';
     });
 
     // 解析代码获取边的结构信息
@@ -699,77 +703,7 @@
   }
 
   /**
-   * 设置节点拖拽
-   * Returns a cleanup function
-   */
-  function setupNodeDrag(nodeEl: SVGGElement, nodeId: string): () => void {
-    let isDragging = false;
-    let startX = 0;
-    let startY = 0;
-    let nodeStartX = 0;
-    let nodeStartY = 0;
-
-    const onMouseDown = (e: MouseEvent) => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-      e.stopPropagation();
-
-      isDragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
-
-      const nodeInfo = nodeInfoMap.get(nodeId);
-      if (nodeInfo) {
-        nodeStartX = nodeInfo.x;
-        nodeStartY = nodeInfo.y;
-      }
-
-      selectNode(nodeId);
-
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-    };
-
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
-
-      // Use requestAnimationFrame for smoother dragging
-      requestAnimationFrame(() => {
-        const dx = (e.clientX - startX) / scale;
-        const dy = (e.clientY - startY) / scale;
-
-        const newX = nodeStartX + dx;
-        const newY = nodeStartY + dy;
-
-        // Update node position
-        updateNodePosition(nodeId, newX, newY);
-      });
-    };
-
-    const onMouseUp = () => {
-      if (isDragging) {
-        isDragging = false;
-        const nodeInfo = nodeInfoMap.get(nodeId);
-        if (nodeInfo) {
-          onNodeMove?.(nodeId, nodeInfo.x, nodeInfo.y);
-        }
-      }
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    nodeEl.addEventListener('mousedown', onMouseDown);
-
-    // Return cleanup function
-    return () => {
-      nodeEl.removeEventListener('mousedown', onMouseDown);
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-  }
-
-  /**
-   * 更新节点位置
+   * 更新节点位置（保留用于未来可能的拖拽功能）
    */
   function updateNodePosition(nodeId: string, x: number, y: number): void {
     const nodeInfo = nodeInfoMap.get(nodeId);
@@ -1556,6 +1490,48 @@
   }
 
   /**
+   * 获取选中节点的边界信息（用于 NodeOverlay）
+   */
+  function getSelectedNodeBounds(): { x: number; y: number; width: number; height: number } | null {
+    if (!selectedNodeId) return null;
+    const nodeInfo = nodeInfoMap.get(selectedNodeId);
+    if (!nodeInfo) return null;
+
+    const bbox = nodeInfo.element.getBBox();
+    return {
+      x: nodeInfo.x + bbox.x,
+      y: nodeInfo.y + bbox.y,
+      width: bbox.width,
+      height: bbox.height,
+    };
+  }
+
+  // 响应式获取选中节点边界
+  const selectedNodeBounds = $derived.by(() => {
+    // 依赖 selectedNodeId 触发更新
+    if (!selectedNodeId) return null;
+    return getSelectedNodeBounds();
+  });
+
+  /**
+   * 处理从 NodeOverlay 触发的添加边操作
+   */
+  function handleOverlayAddEdge(nodeId: string, _direction: 'top' | 'right' | 'bottom' | 'left') {
+    onAddEdge?.(nodeId);
+  }
+
+  /**
+   * 处理从 NodeOverlay 触发的复制操作
+   */
+  function handleDuplicateNode(nodeId: string) {
+    const nodeInfo = nodeInfoMap.get(nodeId);
+    if (nodeInfo && onAddNode) {
+      // 在节点右下方创建副本
+      onAddNode(nodeInfo.x + 50, nodeInfo.y + 50);
+    }
+  }
+
+  /**
    * 右键菜单处理
    */
   function handleContextMenu(event: MouseEvent): void {
@@ -1723,6 +1699,21 @@
       class="selection-box"
       style="left: {left}px; top: {top}px; width: {width}px; height: {height}px;"
     ></div>
+  {/if}
+
+  <!-- 节点选中覆盖层 (draw.io 风格) -->
+  {#if selectedNodeId && selectedNodeBounds && selectedNodeIds.size === 1}
+    <NodeOverlay
+      nodeId={selectedNodeId}
+      bounds={selectedNodeBounds}
+      {scale}
+      {translateX}
+      {translateY}
+      onEdit={onEditNode}
+      onDelete={onDeleteNode}
+      onAddEdge={handleOverlayAddEdge}
+      onDuplicate={handleDuplicateNode}
+    />
   {/if}
 </div>
 
