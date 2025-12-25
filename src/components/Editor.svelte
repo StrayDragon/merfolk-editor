@@ -3,6 +3,7 @@
   import InteractiveCanvas from './InteractiveCanvas.svelte';
   import CodePanel from './CodePanel.svelte';
   import Toolbar from './Toolbar.svelte';
+  import ShapePanel from './ShapePanel.svelte';
   import NodeEditDialog from './NodeEditDialog.svelte';
   import EdgeAddDialog from './EdgeAddDialog.svelte';
   import { SyncEngine } from '../core/sync/SyncEngine';
@@ -22,7 +23,9 @@
   let code = $state('');
   let parseError = $state<string | null>(null);
   let showCode = $state(true);
+  let showShapePanel = $state(true);
   let selectedNodeId = $state<string | null>(null);
+  let selectedShapeType = $state<ShapeType>('rect');
 
   // 画布编辑模式状态
   let isCanvasEditing = $state(false);
@@ -157,6 +160,41 @@
    */
   function toggleCodePanel(): void {
     showCode = !showCode;
+  }
+
+  /**
+   * Toggle shape panel visibility
+   */
+  function toggleShapePanel(): void {
+    showShapePanel = !showShapePanel;
+  }
+
+  /**
+   * Handle shape selection from panel
+   */
+  function handleSelectShape(shape: ShapeType): void {
+    selectedShapeType = shape;
+  }
+
+  /**
+   * Handle drop on canvas (for drag-and-drop shape creation)
+   */
+  function handleCanvasDrop(e: DragEvent): void {
+    const shapeType = e.dataTransfer?.getData('application/merfolk-shape') as ShapeType;
+    if (shapeType && canvasRef) {
+      // Get drop position relative to canvas
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      handleAddNode(x, y, shapeType);
+    }
+  }
+
+  function handleCanvasDragOver(e: DragEvent): void {
+    if (e.dataTransfer?.types.includes('application/merfolk-shape')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
   }
 
   /**
@@ -322,7 +360,9 @@
 <div class="editor">
   <Toolbar
     {showCode}
+    {showShapePanel}
     onToggleCode={toggleCodePanel}
+    onToggleShapePanel={toggleShapePanel}
     onFitToView={fitToView}
     onZoomIn={zoomIn}
     onZoomOut={zoomOut}
@@ -333,7 +373,20 @@
   />
 
   <div class="editor-content">
-    <div class="canvas-container" class:full-width={!showCode}>
+    {#if showShapePanel}
+      <ShapePanel
+        onSelectShape={handleSelectShape}
+        selectedShape={selectedShapeType}
+      />
+    {/if}
+
+    <div
+      class="canvas-container"
+      class:full-width={!showCode && !showShapePanel}
+      ondrop={handleCanvasDrop}
+      ondragover={handleCanvasDragOver}
+      role="application"
+    >
       <InteractiveCanvas
         bind:this={canvasRef}
         {code}
@@ -341,7 +394,7 @@
         onNodeSelect={handleNodeSelect}
         onNodeMove={handleNodeMove}
         onDeleteNode={handleDeleteNode}
-        onAddNode={handleAddNode}
+        onAddNode={(x, y) => handleAddNode(x, y, selectedShapeType)}
         onEditNode={handleEditNode}
         onAddEdge={handleAddEdge}
         onEditStart={handleCanvasEditStart}

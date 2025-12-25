@@ -1,7 +1,9 @@
 <script lang="ts">
   interface Props {
     showCode: boolean;
+    showShapePanel?: boolean;
     onToggleCode: () => void;
+    onToggleShapePanel?: () => void;
     onFitToView: () => void;
     onZoomIn: () => void;
     onZoomOut: () => void;
@@ -13,7 +15,9 @@
 
   let {
     showCode,
+    showShapePanel = true,
     onToggleCode,
+    onToggleShapePanel,
     onFitToView,
     onZoomIn,
     onZoomOut,
@@ -85,6 +89,23 @@
   </div>
 
   <div class="toolbar-group">
+    {#if onToggleShapePanel}
+      <button
+        class="toolbar-btn"
+        class:active={showShapePanel}
+        onclick={onToggleShapePanel}
+        title={showShapePanel ? '隐藏形状面板' : '显示形状面板'}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"/>
+          <rect x="14" y="3" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/>
+        </svg>
+        <span>形状</span>
+      </button>
+    {/if}
+
     <button
       class="toolbar-btn"
       class:active={showCode}
