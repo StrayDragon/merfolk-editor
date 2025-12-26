@@ -292,6 +292,8 @@
       syncEngine.addNode(nodeId, `新节点`, { x, y }, shape);
       // 选中新节点
       selectedNodeId = nodeId;
+      // 通知画布聚焦到新节点
+      canvasRef?.focusOnNode(nodeId);
     } catch (error) {
       console.error('[Editor] Failed to add node:', error);
     }
@@ -340,6 +342,17 @@
       visible: true,
       sourceNodeId,
     };
+  }
+
+  /**
+   * 拖拽创建边（直接创建，不打开对话框）
+   */
+  function handleDragEdgeCreate(sourceId: string, targetId: string): void {
+    try {
+      syncEngine.addEdge(sourceId, targetId, undefined, 'normal', 'arrow');
+    } catch (error) {
+      console.error('[Editor] Failed to create edge via drag:', error);
+    }
   }
 
   /**
@@ -450,6 +463,7 @@
         onAddNode={handleAddNode}
         onEditNode={handleEditNode}
         onAddEdge={handleAddEdge}
+        onDragEdgeCreate={handleDragEdgeCreate}
         onDeleteEdge={handleDeleteEdge}
         onEditEdge={handleEditEdge}
         onInsertNodeOnEdge={handleInsertNodeOnEdge}

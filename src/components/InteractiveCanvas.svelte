@@ -29,8 +29,10 @@
     onAddNode?: (x: number, y: number, shape?: ShapeType) => void;
     /** 编辑节点文本回调 */
     onEditNode?: (nodeId: string) => void;
-    /** 添加边回调 */
+    /** 添加边回调（打开对话框模式） */
     onAddEdge?: (sourceNodeId: string) => void;
+    /** 拖拽创建边回调（直接创建模式） */
+    onDragEdgeCreate?: (sourceId: string, targetId: string) => void;
     /** 删除边回调 */
     onDeleteEdge?: (edgeId: string, sourceId: string, targetId: string) => void;
     /** 编辑边回调 */
@@ -58,6 +60,7 @@
     onAddNode,
     onEditNode,
     onAddEdge,
+    onDragEdgeCreate,
     onDeleteEdge,
     onEditEdge,
     onInsertNodeOnEdge,
@@ -89,6 +92,25 @@
   let isBoxSelecting = $state(false);
   let boxSelectStart = $state<{ x: number; y: number } | null>(null);
   let boxSelectEnd = $state<{ x: number; y: number } | null>(null);
+
+  // 拖拽连线状态
+  interface DragEdgeState {
+    isActive: boolean;
+    sourceNodeId: string;
+    sourcePoint: { x: number; y: number };
+    currentPoint: { x: number; y: number };
+    hoverTargetId: string | null;
+  }
+  let dragEdge = $state<DragEdgeState>({
+    isActive: false,
+    sourceNodeId: '',
+    sourcePoint: { x: 0, y: 0 },
+    currentPoint: { x: 0, y: 0 },
+    hoverTargetId: null,
+  });
+
+  // 帮助面板状态
+  let showHelpPanel = $state(false);
 
   // Parser 实例用于解析代码和获取边信息
   const parser = new MermaidParser();
@@ -169,6 +191,13 @@
   // Re-render when code changes (with debounce)
   let renderTimeout: ReturnType<typeof setTimeout>;
 
+  // 视图状态保持：记录是否是首次渲染
+  let isFirstRender = true;
+  // 上一次的代码，用于判断是否需要完全重渲染
+  let lastRenderedCode = '';
+  // 待聚焦的节点 ID（新添加的节点）
+  let pendingFocusNodeId: string | null = null;
+
   $effect(() => {
     if (code && containerEl) {
       clearTimeout(renderTimeout);
@@ -178,10 +207,26 @@
     }
   });
 
+  /**
+   * 设置待聚焦的节点（用于新添加节点后自动滚动到该节点）
+   */
+  export function focusOnNode(nodeId: string): void {
+    pendingFocusNodeId = nodeId;
+  }
+
   async function renderDiagram(mermaidCode: string): Promise<void> {
     if (!svgContainerEl) return;
 
     const id = `mermaid-interactive-${++renderCounter}`;
+
+    // 保存当前视图状态（仅在非首次渲染时）
+    const savedViewState = !isFirstRender ? {
+      scale,
+      translateX,
+      translateY,
+      selectedNodeId,
+      selectedNodeIds: new Set(selectedNodeIds),
+    } : null;
 
     try {
       // 首先尝试解析代码
@@ -193,7 +238,42 @@
 
       // 设置交互（传递解析后的模型信息）
       setupInteraction(mermaidCode);
-      setupZoomPan();
+
+      // 视图状态恢复逻辑
+      if (savedViewState && !isFirstRender) {
+        // 恢复缩放和平移状态
+        scale = savedViewState.scale;
+        translateX = savedViewState.translateX;
+        translateY = savedViewState.translateY;
+
+        // 尝试恢复选择状态
+        if (savedViewState.selectedNodeId && nodeInfoMap.has(savedViewState.selectedNodeId)) {
+          selectedNodeId = savedViewState.selectedNodeId;
+          selectedNodeIds = savedViewState.selectedNodeIds;
+          // 重新应用选中样式
+          for (const id of selectedNodeIds) {
+            const nodeInfo = nodeInfoMap.get(id);
+            if (nodeInfo) {
+              nodeInfo.element.classList.add('selected');
+            }
+          }
+        }
+
+        // 如果有待聚焦的节点，滚动到该节点
+        if (pendingFocusNodeId) {
+          requestAnimationFrame(() => {
+            scrollToNodeSmooth(pendingFocusNodeId!, true);
+            selectNode(pendingFocusNodeId);
+            pendingFocusNodeId = null;
+          });
+        }
+      } else {
+        // 首次渲染，执行默认的居中操作
+        setupZoomPan();
+        isFirstRender = false;
+      }
+
+      lastRenderedCode = mermaidCode;
 
       // 清除之前的错误状态
       onError?.(null);
@@ -220,6 +300,227 @@
       }
       // 如果已经有画布内容，保持不变，让用户继续操作
     }
+  }
+
+  /**
+   * 平滑滚动到指定节点
+   * @param nodeId 节点 ID
+   * @param highlight 是否高亮闪烁
+   */
+  function scrollToNodeSmooth(nodeId: string, highlight: boolean = false): void {
+    const nodeInfo = nodeInfoMap.get(nodeId);
+    if (!nodeInfo || !containerEl) return;
+
+    const containerRect = containerEl.getBoundingClientRect();
+
+    // 计算节点在当前缩放下的位置
+    const nodeScreenX = nodeInfo.x * scale + translateX;
+    const nodeScreenY = nodeInfo.y * scale + translateY;
+
+    // 检查节点是否在视口内
+    const padding = 100;
+    const isInView =
+      nodeScreenX >= padding &&
+      nodeScreenX <= containerRect.width - padding &&
+      nodeScreenY >= padding &&
+      nodeScreenY <= containerRect.height - padding;
+
+    // 如果节点不在视口内，平滑滚动到节点位置
+    if (!isInView) {
+      const targetTranslateX = containerRect.width / 2 - nodeInfo.x * scale;
+      const targetTranslateY = containerRect.height / 2 - nodeInfo.y * scale;
+
+      // 使用 CSS transition 实现平滑动画
+      if (svgContainerEl) {
+        svgContainerEl.style.transition = 'transform 0.3s ease-out';
+        translateX = targetTranslateX;
+        translateY = targetTranslateY;
+
+        // 动画完成后移除 transition
+        setTimeout(() => {
+          if (svgContainerEl) {
+            svgContainerEl.style.transition = '';
+          }
+        }, 300);
+      }
+    }
+
+    // 高亮闪烁效果
+    if (highlight) {
+      highlightNode(nodeId);
+    }
+  }
+
+  /**
+   * 高亮闪烁节点
+   */
+  function highlightNode(nodeId: string): void {
+    const nodeInfo = nodeInfoMap.get(nodeId);
+    if (!nodeInfo) return;
+
+    const element = nodeInfo.element;
+    element.classList.add('node-highlight');
+
+    // 闪烁动画
+    setTimeout(() => {
+      element.classList.remove('node-highlight');
+    }, 1500);
+  }
+
+  // ============ 拖拽连线功能 ============
+
+  /**
+   * 开始拖拽连线
+   */
+  function startDragEdge(nodeId: string, startX: number, startY: number): void {
+    // 使用与覆盖层渲染一致的坐标计算
+    const bounds = getNodeSvgBounds(nodeId);
+    if (!bounds) return;
+
+    // 从节点底部中心开始（与连接点位置一致）
+    const sourceX = bounds.x + bounds.width / 2;
+    const sourceY = bounds.y + bounds.height;
+
+    dragEdge = {
+      isActive: true,
+      sourceNodeId: nodeId,
+      sourcePoint: { x: sourceX, y: sourceY },
+      currentPoint: { x: sourceX, y: sourceY }, // 初始位置也从起点开始
+      hoverTargetId: null,
+    };
+
+    onEditStart?.();
+  }
+
+  /**
+   * 将屏幕坐标转换为 SVG 内部坐标
+   */
+  function screenToSvgCoords(clientX: number, clientY: number): { x: number; y: number } | null {
+    const svg = svgContainerEl?.querySelector('svg');
+    if (!svg) return null;
+
+    // 使用 SVG 的 getScreenCTM() 进行精确坐标转换
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+
+    const point = svg.createSVGPoint();
+    point.x = clientX;
+    point.y = clientY;
+
+    // 将屏幕坐标转换为 SVG 坐标
+    const svgPoint = point.matrixTransform(ctm.inverse());
+    return { x: svgPoint.x, y: svgPoint.y };
+  }
+
+  /**
+   * 更新拖拽连线位置
+   */
+  function updateDragEdge(clientX: number, clientY: number): void {
+    if (!dragEdge.isActive) return;
+
+    // 使用精确的 SVG 坐标转换
+    const svgCoords = screenToSvgCoords(clientX, clientY);
+    if (!svgCoords) return;
+
+    dragEdge.currentPoint = { x: svgCoords.x, y: svgCoords.y };
+
+    // 检测是否悬停在某个节点上
+    let hoveredNodeId: string | null = null;
+    for (const [id] of nodeInfoMap) {
+      if (id === dragEdge.sourceNodeId) continue;
+
+      // 使用与覆盖层渲染一致的坐标计算
+      const bounds = getNodeSvgBounds(id);
+      if (!bounds) continue;
+
+      // 检查鼠标是否在节点范围内（增加容差提高易用性）
+      const tolerance = 10;
+      if (
+        svgCoords.x >= bounds.x - tolerance &&
+        svgCoords.x <= bounds.x + bounds.width + tolerance &&
+        svgCoords.y >= bounds.y - tolerance &&
+        svgCoords.y <= bounds.y + bounds.height + tolerance
+      ) {
+        hoveredNodeId = id;
+        break;
+      }
+    }
+
+    // 更新悬停目标并添加/移除高亮样式
+    if (dragEdge.hoverTargetId !== hoveredNodeId) {
+      // 移除旧的高亮
+      if (dragEdge.hoverTargetId) {
+        const oldTarget = nodeInfoMap.get(dragEdge.hoverTargetId);
+        if (oldTarget) {
+          oldTarget.element.classList.remove('drag-target');
+        }
+      }
+      // 添加新的高亮
+      if (hoveredNodeId) {
+        const newTarget = nodeInfoMap.get(hoveredNodeId);
+        if (newTarget) {
+          newTarget.element.classList.add('drag-target');
+        }
+      }
+    }
+
+    dragEdge.hoverTargetId = hoveredNodeId;
+  }
+
+  /**
+   * 结束拖拽连线
+   */
+  function endDragEdge(): void {
+    if (!dragEdge.isActive) return;
+
+    const targetId = dragEdge.hoverTargetId;
+    const sourceId = dragEdge.sourceNodeId;
+
+    // 清除目标高亮
+    if (targetId) {
+      const targetNode = nodeInfoMap.get(targetId);
+      if (targetNode) {
+        targetNode.element.classList.remove('drag-target');
+      }
+    }
+
+    // 重置状态
+    dragEdge = {
+      isActive: false,
+      sourceNodeId: '',
+      sourcePoint: { x: 0, y: 0 },
+      currentPoint: { x: 0, y: 0 },
+      hoverTargetId: null,
+    };
+
+    // 如果有有效目标，创建边
+    if (targetId && targetId !== sourceId) {
+      onDragEdgeCreate?.(sourceId, targetId);
+    }
+
+    onEditEnd?.();
+  }
+
+  /**
+   * 取消拖拽连线
+   */
+  function cancelDragEdge(): void {
+    // 清除目标高亮
+    if (dragEdge.hoverTargetId) {
+      const targetNode = nodeInfoMap.get(dragEdge.hoverTargetId);
+      if (targetNode) {
+        targetNode.element.classList.remove('drag-target');
+      }
+    }
+
+    dragEdge = {
+      isActive: false,
+      sourceNodeId: '',
+      sourcePoint: { x: 0, y: 0 },
+      currentPoint: { x: 0, y: 0 },
+      hoverTargetId: null,
+    };
+    onEditEnd?.();
   }
 
   /**
@@ -458,11 +759,16 @@
 
     // 点击空白处取消选择
     svg.addEventListener('click', (e) => {
-      if (e.target === svg || (e.target as Element).tagName === 'rect') {
-        selectNode(null);
-        selectEdge(null);
+      const target = e.target as Element;
+      // 如果点击的是节点或边，不取消选择（由各自的点击事件处理）
+      if (target.closest('g.node') || target.closest('path.flowchart-link') || target.closest('.edgePath')) {
+        return;
       }
+      // 否则取消所有选择
+      selectNode(null);
+      selectEdge(null);
     });
+
   }
 
   /**
@@ -1416,6 +1722,12 @@
   }
 
   function handleMouseMove(event: MouseEvent): void {
+    // 拖拽连线模式
+    if (dragEdge.isActive) {
+      updateDragEdge(event.clientX, event.clientY);
+      return;
+    }
+
     // 框选模式
     if (isBoxSelecting && containerEl && boxSelectStart) {
       const rect = containerEl.getBoundingClientRect();
@@ -1436,6 +1748,12 @@
   }
 
   function handleMouseUp(): void {
+    // 拖拽连线结束
+    if (dragEdge.isActive) {
+      endDragEdge();
+      return;
+    }
+
     // 完成框选
     if (isBoxSelecting && boxSelectStart && boxSelectEnd) {
       const nodesInBox = getNodesInSelectionBox(boxSelectStart, boxSelectEnd);
@@ -1486,6 +1804,13 @@
     // Escape 取消选择
     if (event.key === 'Escape') {
       event.preventDefault();
+
+      // 取消拖拽连线
+      if (dragEdge.isActive) {
+        cancelDragEdge();
+        return;
+      }
+
       if (selectedNodeIds.size > 0) {
         clearAllSelections();
         selectedNodeId = null;
@@ -1577,21 +1902,32 @@
   }
 
   /**
+   * 获取节点在 SVG 坐标系中的边界
+   * 用于在 SVG 内部渲染覆盖层
+   */
+  function getNodeSvgBounds(nodeId: string): { x: number; y: number; width: number; height: number } | null {
+    const nodeInfo = nodeInfoMap.get(nodeId);
+    if (!nodeInfo) return null;
+
+    // 获取节点的 bounding box（本地坐标系）
+    const bbox = nodeInfo.element.getBBox();
+
+    // 计算全局坐标：transform 位移 + 本地坐标偏移
+    return {
+      x: nodeInfo.x + bbox.x,
+      y: nodeInfo.y + bbox.y,
+      width: bbox.width,
+      height: bbox.height,
+    };
+  }
+
+  /**
    * 获取选中节点的边界信息（SVG 坐标系）
    * 用于在 SVG 内部渲染覆盖层
    */
   function getSelectedNodeSvgBounds(): { x: number; y: number; width: number; height: number } | null {
     if (!selectedNodeId) return null;
-    const nodeInfo = nodeInfoMap.get(selectedNodeId);
-    if (!nodeInfo) return null;
-
-    // 直接返回 SVG 坐标系中的位置
-    return {
-      x: nodeInfo.x - nodeInfo.width / 2,
-      y: nodeInfo.y - nodeInfo.height / 2,
-      width: nodeInfo.width,
-      height: nodeInfo.height,
-    };
+    return getNodeSvgBounds(selectedNodeId);
   }
 
   // 响应式获取选中节点边界（SVG 坐标）
@@ -1673,11 +2009,26 @@
     vLine.setAttribute('stroke-linecap', 'round');
     portGroup.appendChild(vLine);
 
-    // 连接点点击事件
+    // 连接点点击事件（打开对话框模式）
     portGroup.addEventListener('click', (e) => {
       e.stopPropagation();
       if (selectedNodeId) {
         onAddEdge?.(selectedNodeId);
+      }
+    });
+
+    // 连接点拖拽事件（拖拽连线模式）
+    // 将 nodeId 存储在 data 属性中，避免闭包问题
+    portGroup.setAttribute('data-node-id', selectedNodeId);
+    portGroup.addEventListener('mousedown', (e) => {
+      const nodeId = portGroup.getAttribute('data-node-id');
+      e.stopPropagation();
+      e.preventDefault();
+      if (nodeId && containerEl) {
+        const rect = containerEl.getBoundingClientRect();
+        const canvasX = (e.clientX - rect.left - translateX) / scale;
+        const canvasY = (e.clientY - rect.top - translateY) / scale;
+        startDragEdge(nodeId, canvasX, canvasY);
       }
     });
 
@@ -1686,11 +2037,137 @@
       portCircle.setAttribute('r', '12');
     });
     portGroup.addEventListener('mouseleave', () => {
-      portCircle.setAttribute('r', '10');
+      if (!dragEdge.isActive) {
+        portCircle.setAttribute('r', '10');
+      }
     });
 
     overlayGroup.appendChild(portGroup);
     svg.appendChild(overlayGroup);
+  }
+
+  /**
+   * 在 SVG 内部渲染拖拽连线
+   */
+  function updateDragEdgeOverlay(): void {
+    const svg = svgContainerEl?.querySelector('svg');
+    if (!svg) return;
+
+    // 移除旧的拖拽连线覆盖层
+    const existingDragOverlay = svg.querySelector('.drag-edge-group');
+    if (existingDragOverlay) {
+      existingDragOverlay.remove();
+    }
+
+    // 如果没有激活拖拽，不渲染
+    if (!dragEdge.isActive) return;
+
+    const sourceNodeId = dragEdge.sourceNodeId;
+    const bounds = getNodeSvgBounds(sourceNodeId);
+    if (!bounds) return;
+
+    // 起始点：节点底部中心（与连接点位置一致）
+    const startX = bounds.x + bounds.width / 2;
+    const startY = bounds.y + bounds.height;
+
+    // 终点：当前鼠标位置（已转换为 SVG 坐标）
+    const endX = dragEdge.currentPoint.x;
+    const endY = dragEdge.currentPoint.y;
+
+    // 创建拖拽连线组
+    const dragGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    dragGroup.setAttribute('class', 'drag-edge-group');
+
+    // 定义箭头标记
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', 'drag-arrow-svg');
+    marker.setAttribute('markerWidth', '10');
+    marker.setAttribute('markerHeight', '10');
+    marker.setAttribute('refX', '9');
+    marker.setAttribute('refY', '3');
+    marker.setAttribute('orient', 'auto');
+    marker.setAttribute('markerUnits', 'strokeWidth');
+    const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    arrowPath.setAttribute('d', 'M0,0 L0,6 L9,3 z');
+    arrowPath.setAttribute('fill', dragEdge.hoverTargetId ? '#4caf50' : '#1976d2');
+    marker.appendChild(arrowPath);
+    defs.appendChild(marker);
+    dragGroup.appendChild(defs);
+
+    // 连线
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', String(startX));
+    line.setAttribute('y1', String(startY));
+    line.setAttribute('x2', String(endX));
+    line.setAttribute('y2', String(endY));
+    line.setAttribute('stroke', dragEdge.hoverTargetId ? '#4caf50' : '#1976d2');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-dasharray', '6,4');
+    line.setAttribute('marker-end', 'url(#drag-arrow-svg)');
+    line.style.pointerEvents = 'none';
+    dragGroup.appendChild(line);
+
+    // 起始点圆
+    const startCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    startCircle.setAttribute('cx', String(startX));
+    startCircle.setAttribute('cy', String(startY));
+    startCircle.setAttribute('r', '4');
+    startCircle.setAttribute('fill', '#1976d2');
+    startCircle.style.pointerEvents = 'none';
+    dragGroup.appendChild(startCircle);
+
+    // 终点指示器
+    if (dragEdge.hoverTargetId) {
+      // 悬停在目标上时的动画效果
+      const pulseCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      pulseCircle.setAttribute('cx', String(endX));
+      pulseCircle.setAttribute('cy', String(endY));
+      pulseCircle.setAttribute('r', '8');
+      pulseCircle.setAttribute('fill', 'none');
+      pulseCircle.setAttribute('stroke', '#4caf50');
+      pulseCircle.setAttribute('stroke-width', '2');
+      pulseCircle.style.pointerEvents = 'none';
+
+      const animate1 = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+      animate1.setAttribute('attributeName', 'r');
+      animate1.setAttribute('from', '8');
+      animate1.setAttribute('to', '14');
+      animate1.setAttribute('dur', '0.6s');
+      animate1.setAttribute('repeatCount', 'indefinite');
+      pulseCircle.appendChild(animate1);
+
+      const animate2 = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+      animate2.setAttribute('attributeName', 'opacity');
+      animate2.setAttribute('from', '1');
+      animate2.setAttribute('to', '0');
+      animate2.setAttribute('dur', '0.6s');
+      animate2.setAttribute('repeatCount', 'indefinite');
+      pulseCircle.appendChild(animate2);
+
+      dragGroup.appendChild(pulseCircle);
+
+      const endCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      endCircle.setAttribute('cx', String(endX));
+      endCircle.setAttribute('cy', String(endY));
+      endCircle.setAttribute('r', '6');
+      endCircle.setAttribute('fill', '#4caf50');
+      endCircle.style.pointerEvents = 'none';
+      dragGroup.appendChild(endCircle);
+    } else {
+      const endCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      endCircle.setAttribute('cx', String(endX));
+      endCircle.setAttribute('cy', String(endY));
+      endCircle.setAttribute('r', '5');
+      endCircle.setAttribute('fill', 'none');
+      endCircle.setAttribute('stroke', '#1976d2');
+      endCircle.setAttribute('stroke-width', '2');
+      endCircle.setAttribute('stroke-dasharray', '3,2');
+      endCircle.style.pointerEvents = 'none';
+      dragGroup.appendChild(endCircle);
+    }
+
+    svg.appendChild(dragGroup);
   }
 
   // 响应式更新 SVG 覆盖层
@@ -1699,6 +2176,15 @@
     void selectedNodeId;
     void selectedNodeIds.size;
     updateSvgOverlay();
+  });
+
+  // 响应式更新拖拽连线
+  $effect(() => {
+    // 依赖拖拽状态
+    void dragEdge.isActive;
+    void dragEdge.currentPoint;
+    void dragEdge.hoverTargetId;
+    updateDragEdgeOverlay();
   });
 
   /**
@@ -1979,6 +2465,56 @@
   <!-- 缩放指示器 -->
   <div class="zoom-indicator">{Math.round(scale * 100)}%</div>
 
+  <!-- 快捷键帮助按钮 -->
+  <button
+    class="help-button"
+    onclick={() => showHelpPanel = !showHelpPanel}
+    title="快捷键帮助"
+  >
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+      <line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+  </button>
+
+  <!-- 快捷键帮助面板 -->
+  {#if showHelpPanel}
+    <div class="help-panel">
+      <div class="help-panel-header">
+        <span>⌨️ 快捷操作</span>
+        <button class="help-close" onclick={() => showHelpPanel = false}>×</button>
+      </div>
+      <div class="help-panel-content">
+        <div class="help-section">
+          <h4>节点操作</h4>
+          <div class="help-item"><kbd>右键空白</kbd> 添加节点</div>
+          <div class="help-item"><kbd>双击节点</kbd> 编辑文本</div>
+          <div class="help-item"><kbd>Delete</kbd> 删除选中</div>
+          <div class="help-item"><kbd>Ctrl+A</kbd> 全选节点</div>
+        </div>
+        <div class="help-section">
+          <h4>连线操作</h4>
+          <div class="help-item"><kbd>拖拽端口</kbd> 快速连线</div>
+          <div class="help-item"><kbd>点击端口</kbd> 打开连线对话框</div>
+          <div class="help-item"><kbd>双击边</kbd> 编辑标签</div>
+        </div>
+        <div class="help-section">
+          <h4>视图操作</h4>
+          <div class="help-item"><kbd>滚轮</kbd> 缩放</div>
+          <div class="help-item"><kbd>拖拽空白</kbd> 平移画布</div>
+          <div class="help-item"><kbd>Shift+拖拽</kbd> 框选多个</div>
+          <div class="help-item"><kbd>Escape</kbd> 取消选择</div>
+        </div>
+        <div class="help-section">
+          <h4>撤销/重做</h4>
+          <div class="help-item"><kbd>Ctrl+Z</kbd> 撤销</div>
+          <div class="help-item"><kbd>Ctrl+Y</kbd> 重做</div>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   <!-- 多选提示 -->
   {#if selectedNodeIds.size > 1}
     <div class="multi-select-indicator">
@@ -1996,6 +2532,19 @@
       class="selection-box"
       style="left: {left}px; top: {top}px; width: {width}px; height: {height}px;"
     ></div>
+  {/if}
+
+  <!-- 拖拽连线提示 (连线本身在 SVG 内部渲染) -->
+  {#if dragEdge.isActive}
+    {@const endX = dragEdge.currentPoint.x * scale + translateX}
+    {@const endY = dragEdge.currentPoint.y * scale + translateY}
+    <div class="drag-edge-hint" style="left: {endX + 15}px; top: {endY - 10}px;">
+      {#if dragEdge.hoverTargetId}
+        <span class="hint-success">释放以连接</span>
+      {:else}
+        <span class="hint-info">拖拽到目标节点</span>
+      {/if}
+    </div>
   {/if}
 
   <!-- 节点选中时的浮动工具栏 (HTML 元素) -->
@@ -2129,6 +2678,35 @@
     user-select: none;
   }
 
+  /* 拖拽连线提示 */
+  .drag-edge-hint {
+    position: absolute;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 51;
+    animation: fadeIn 0.15s ease;
+  }
+
+  .drag-edge-hint .hint-success {
+    background: #e8f5e9;
+    color: #2e7d32;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #81c784;
+  }
+
+  .drag-edge-hint .hint-info {
+    background: #e3f2fd;
+    color: #1565c0;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #64b5f6;
+  }
+
   /* 多选指示器 */
   .multi-select-indicator {
     position: absolute;
@@ -2148,6 +2726,130 @@
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* 帮助按钮 */
+  .help-button {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    width: 32px;
+    height: 32px;
+    border: 1px solid #ddd;
+    border-radius: 50%;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #666;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+  }
+
+  .help-button:hover {
+    background: #f5f5f5;
+    color: #1976d2;
+    border-color: #1976d2;
+  }
+
+  /* 帮助面板 */
+  .help-panel {
+    position: absolute;
+    bottom: 52px;
+    left: 12px;
+    width: 260px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 100;
+    animation: slideUp 0.2s ease;
+    overflow: hidden;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .help-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .help-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    opacity: 0.8;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+
+  .help-close:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .help-panel-content {
+    padding: 12px 16px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .help-section {
+    margin-bottom: 12px;
+  }
+
+  .help-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .help-section h4 {
+    margin: 0 0 8px 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .help-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #333;
+    padding: 4px 0;
+  }
+
+  .help-item kbd {
+    background: linear-gradient(180deg, #fafafa 0%, #f0f0f0 100%);
+    border: 1px solid #ccc;
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #444;
+    white-space: nowrap;
+    min-width: 80px;
+    text-align: center;
   }
 
   /* 框选矩形 */
@@ -2203,67 +2905,74 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
     z-index: 30;
+    animation: fadeIn 0.15s ease;
   }
 
   /* 边选中时的浮动工具栏 */
   .edge-toolbar {
     display: flex;
     align-items: center;
-    gap: 2px;
-    padding: 4px 6px;
-    background: #fff;
+    gap: 6px;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
     border: 1px solid #90caf9;
-    border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(25, 118, 210, 0.15);
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(25, 118, 210, 0.2);
   }
 
   .edge-toolbar button {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
+    width: 32px;
+    height: 32px;
     padding: 0;
-    border: none;
-    border-radius: 4px;
+    border: 1px solid transparent;
+    border-radius: 6px;
     background: transparent;
     color: #1976d2;
     cursor: pointer;
+    transition: all 0.15s ease;
   }
 
   .edge-toolbar button:hover {
     background: #e3f2fd;
+    border-color: #90caf9;
+    transform: scale(1.05);
   }
 
   .edge-toolbar button.danger:hover {
-    background: #fff5f5;
+    background: #ffebee;
+    border-color: #ef9a9a;
     color: #dc3545;
   }
 
   .edge-label-preview {
-    font-size: 11px;
-    color: #666;
-    max-width: 80px;
+    font-size: 12px;
+    color: #555;
+    max-width: 100px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding: 0 4px;
+    padding: 4px 8px;
     border-left: 1px solid #e0e0e0;
-    margin-left: 2px;
+    margin-left: 4px;
+    background: #f5f5f5;
+    border-radius: 4px;
   }
 
   /* 快速插入节点栏 */
   .quick-insert-bar {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
+    gap: 6px;
+    padding: 8px 12px;
     background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
     border: 1px solid #81c784;
-    border-radius: 6px;
-    box-shadow: 0 2px 6px rgba(76, 175, 80, 0.15);
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
   }
 
   .quick-insert-label {
@@ -2319,6 +3028,38 @@
   .svg-container :global(g.node.selected circle) {
     stroke: #1976d2 !important;
     stroke-width: 2px !important;
+  }
+
+  /* 节点高亮闪烁动画 */
+  .svg-container :global(g.node.node-highlight .label-container),
+  .svg-container :global(g.node.node-highlight rect),
+  .svg-container :global(g.node.node-highlight polygon),
+  .svg-container :global(g.node.node-highlight circle) {
+    animation: nodeHighlightPulse 0.5s ease-in-out 3;
+  }
+
+  @keyframes nodeHighlightPulse {
+    0%, 100% {
+      stroke: #1976d2;
+      stroke-width: 2px;
+      filter: drop-shadow(0 0 0 transparent);
+    }
+    50% {
+      stroke: #4caf50;
+      stroke-width: 4px;
+      filter: drop-shadow(0 0 8px rgba(76, 175, 80, 0.6));
+    }
+  }
+
+  /* 拖拽连线目标节点高亮 */
+  .svg-container :global(g.node.drag-target .label-container),
+  .svg-container :global(g.node.drag-target rect),
+  .svg-container :global(g.node.drag-target polygon),
+  .svg-container :global(g.node.drag-target circle) {
+    stroke: #4caf50 !important;
+    stroke-width: 3px !important;
+    filter: drop-shadow(0 0 8px rgba(76, 175, 80, 0.5));
+    transition: all 0.15s ease;
   }
 
   /* 边选中状态 */
