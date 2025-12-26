@@ -16,7 +16,8 @@ Merfolk Editor 提供了创建和编辑 Mermaid 流程图的流畅体验：
 - **双向同步**：可视化操作自动更新 Mermaid 代码
 - **自动布局**：内置 Dagre 布局算法，一键整理图表
 
-TODO:编辑器演示
+
+[演示](https://github.com/user-attachments/assets/8c084ad8-12c6-4dad-a089-b0c4dc6c2ba1)
 
 ## 功能特性
 
