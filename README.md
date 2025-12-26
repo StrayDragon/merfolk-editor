@@ -1,295 +1,74 @@
 # Merfolk Editor
 
-一个支持双向同步的 Mermaid 流程图可视化编辑器。通过拖拽节点编辑图形，代码自动更新，也可以在代码中修改，图形实时同步。
+一款支持 Mermaid 代码与可视化画布双向同步的流程图编辑器。
 
-## 特性
+<!-- [![NPM Version](https://img.shields.io/npm/v/merfolk-editor)](https://www.npmjs.com/package/merfolk-editor) -->
+<!-- [![License](https://img.shields.io/npm/l/merfolk-editor)](LICENSE) -->
+<!-- [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/) -->
+<!-- [![Svelte](https://img.shields.io/badge/Svelte-5-ff7341)](https://svelte.dev/) -->
 
-- ✨ **无限画布** - 支持平移和缩放，画布大小不受限制
-- 🎯 **双向同步** - 可视化编辑与代码实时双向同步
-- 🖱️ **拖拽编辑** - 直接拖拽节点调整布局
-- ➕ **添加/删除** - 支持动态添加/删除节点和边
-- 🎨 **边创建模式** - 点击式创建连接边
-- 🔧 **可嵌入** - 轻量级库，可嵌入到 VSCode、网页等应用中
-- 📦 **TypeScript** - 完整的类型支持
+## 简介
 
-## 快速开始
+Merfolk Editor 提供了创建和编辑 Mermaid 流程图的流畅体验：
 
-### 基本使用
+- **可视化编辑**：在交互式画布上拖拽节点、绘制连线、调整形状
+- **代码同步**：直接编辑 Mermaid 代码，变更即时反映到画布
+- **双向同步**：可视化操作自动更新 Mermaid 代码
+- **自动布局**：内置 Dagre 布局算法，一键整理图表
 
-```html
-<!DOCTYPE html>
-<html>
-<head>
-  <script type="module">
-    import MerfolkEditor from 'merfolk-editor';
+TODO:编辑器演示
 
-    const editor = new MerfolkEditor(document.getElementById('editor'), {
-      initialCode: `
-        flowchart TD
-          A[Start] --> B{Decision}
-          B -->|Yes| C[Process 1]
-          B -->|No| D[Process 2]
-          C --> E[End]
-          D --> E
-      `,
-      onCodeChange: (code) => {
-        console.log('Code updated:', code);
-      }
-    });
-  </script>
-</head>
-<body>
-  <div id="editor" style="width: 100%; height: 80vh;"></div>
-</body>
-</html>
-```
+## 功能特性
 
-### NPM 安装
+| 功能 | 描述 |
+|------|------|
+| 可视化画布 | 基于 D3.js 的 SVG 渲染，支持缩放和平移 |
+| 节点操作 | 添加、编辑、移动、删除节点 |
+| 边连接 | 从端口拖拽创建连线 |
+| 代码编辑器 | 实时 Mermaid 代码同步 |
+| 自动布局 | 一键整理图表结构 |
+| 命令模式 | 完整的撤销/重做支持 |
+| 键盘快捷键 | 高效的纯键盘操作 |
 
-```bash
-npm install merfolk-editor
-# 或
-pnpm add merfolk-editor
-```
+## 支持的图表类型
 
-### ES 模块
+| 类型 | 支持程度 |
+|------|----------|
+| Flowchart（流程图） | 完全支持（可视化编辑 + 代码同步） |
+| 其他类型（时序图、类图、状态图等） | 仅支持预览（只读） |
 
-```javascript
-import MerfolkEditor from 'merfolk-editor';
+> 注意：当前版本专注于 **Flowchart** 的完整编辑体验，其他 Mermaid 图表类型可正常渲染和预览，但无法进行可视化编辑。
 
-const editor = new MerfolkEditor(container, {
-  initialCode: 'flowchart LR\n    A --> B --> C',
-  onCodeChange: (code) => {
-    // 处理代码变更
-  }
-});
-```
-
-## API 参考
-
-### 构造函数
-
-```typescript
-const editor = new MerfolkEditor(container: HTMLElement, options?: EditorOptions)
-```
-
-**选项:**
-
-- `initialCode?: string` - 初始 Mermaid 代码
-- `onCodeChange?: (code: string) => void` - 代码变更回调
-- `sync?: SyncEngineOptions` - 同步引擎选项
-
-### 方法
-
-#### 代码操作
-
-- `getCode(): string` - 获取当前代码
-- `setCode(code: string): void` - 设置代码
-
-#### 节点操作
-
-- `removeNode(nodeId: string): void` - 删除节点
-- `setNodePosition(nodeId: string, x: number, y: number): void` - 设置节点位置
-- `getNodePosition(nodeId: string): { x, y } | undefined` - 获取节点位置
-
-#### 视图控制
-
-- `zoomIn(): void` - 放大
-- `zoomOut(): void` - 缩小
-- `resetZoom(): void` - 重置缩放
-- `fitToView(): void` - 适应视图
-
-#### UI 控制
-
-- `showCodePanel(): void` - 显示代码面板
-- `hideCodePanel(): void` - 隐藏代码面板
-
-#### 位置管理
-
-- `getAllNodePositions(): Record<string, { x, y }>` - 获取所有节点位置
-- `exportPositions(): Record<string, { x, y }>` - 导出位置数据
-- `importPositions(positions: Record<string, { x, y }>): void` - 导入位置数据
-
-#### 生命周期
-
-- `destroy(): void` - 销毁编辑器实例
-
-### 类型定义
-
-```typescript
-interface NodeData {
-  id: string;
-  text: string;
-  shape?: ShapeType;
-  cssClasses?: string[];
-  position?: { x: number; y: number };
-}
-
-interface EdgeData {
-  id: string;
-  source: string;
-  target: string;
-  text?: string;
-  stroke?: StrokeType;
-  arrowStart?: ArrowType;
-  arrowEnd?: ArrowType;
-}
-```
-
-## VSCode 扩展集成
-
-Merfolk Editor 设计为可嵌入到 VSCode Webview 中。以下是集成思路：
-
-### 基本架构
-
-```
-VSCode 扩展
-├── extension.ts          # 扩展入口
-├── webview/
-│   ├── index.html        # Webview HTML
-│   └── main.js           # 打包后的编辑器代码
-└── package.json
-```
-
-### 集成要点
-
-1. **资源处理**：使用 `webview.asWebviewUri()` 转换本地资源路径
-2. **CSP 配置**：配置 Content Security Policy 允许脚本执行
-3. **消息通信**：通过 `postMessage` 与扩展主进程通信
-
-```typescript
-// extension.ts 示例
-import * as vscode from 'vscode';
-
-export function activate(context: vscode.ExtensionContext) {
-  const panel = vscode.window.createWebviewPanel(
-    'merfolkEditor',
-    'Mermaid Editor',
-    vscode.ViewColumn.Two,
-    {
-      enableScripts: true,
-      localResourceRoots: [
-        vscode.Uri.joinPath(context.extensionUri, 'webview')
-      ]
-    }
-  );
-
-  // 获取 webview 资源 URI
-  const scriptUri = panel.webview.asWebviewUri(
-    vscode.Uri.joinPath(context.extensionUri, 'webview', 'main.js')
-  );
-  const styleUri = panel.webview.asWebviewUri(
-    vscode.Uri.joinPath(context.extensionUri, 'webview', 'style.css')
-  );
-
-  panel.webview.html = getWebviewContent(scriptUri, styleUri);
-
-  // 处理来自 webview 的消息
-  panel.webview.onDidReceiveMessage(message => {
-    if (message.type === 'codeChange') {
-      // 同步代码到 VSCode 文档
-    }
-  });
-}
-
-function getWebviewContent(scriptUri: vscode.Uri, styleUri: vscode.Uri) {
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'none'; script-src ${scriptUri}; style-src ${styleUri} 'unsafe-inline';">
-  <link href="${styleUri}" rel="stylesheet">
-</head>
-<body>
-  <div id="editor"></div>
-  <script src="${scriptUri}"></script>
-</body>
-</html>`;
-}
-```
-
-### 打包建议
-
-为 VSCode 扩展构建时，建议：
-- 将 merfolk-editor 及其依赖打包成单文件
-- 使用 esbuild 或 rollup 进行打包
-- 确保 mermaid、d3 等依赖被正确内联
-
-> ⚠️ 完整的 VSCode 扩展示例正在开发中
-
-## 技术架构
-
-[MermaidChart:./docs/plan/architecture.mmd@tech-stack]
-
-### 核心模块
-
-1. **SyncEngine** - 同步引擎，负责代码与图形的双向同步
-2. **InteractiveCanvas** - 交互式画布组件
-3. **Parser/Serializer** - Mermaid 代码解析和序列化
-4. **Model** - 数据模型管理
-
-### 设计原则
-
-- **性能优先** - 使用 transform 进行缩放平移，避免重排
-- **类型安全** - 完整的 TypeScript 类型定义
-- **可扩展** - 模块化设计，易于扩展
-- **轻量级** - 最小化依赖，按需加载
 
 ## 开发
 
-### 安装依赖
-
 ```bash
+# 安装依赖
 pnpm install
-```
 
-### 开发模式
-
-```bash
+# 启动开发服务器
 pnpm dev
-```
 
-### 构建
-
-```bash
-# 构建 Web 应用
-pnpm build
-
-# 构建库文件
-pnpm build:lib
-```
-
-### 测试
-
-```bash
-# 单元测试
+# 运行测试
 pnpm test
 
-# 仅使用 Chromium 的端到端测试（Playwright）
-pnpm test:e2e
+# 类型检查
+pnpm check
+
+# 构建库
+pnpm build
 ```
 
-> 已在脚本中使用系统的 `chromium` 可执行文件（通过 `PLAYWRIGHT_CHROMIUM_EXECUTABLE=$(command -v chromium)`），不需要额外参数。确保系统已安装 chromium 即可。
+## 技术栈
 
-### 清理遗留文件
+- **Svelte** - UI 框架
+- **TypeScript** - 类型安全
+- **D3.js** - SVG 渲染
+- **@dagrejs/dagre** - 自动布局
+- **Vitest** - 单元测试
 
-```bash
-pnpm clean:artifacts
-```
+## 引用
 
-> 删除旧的 Cypress 目录与 Playwright 生成的临时测试输出，保持仓库整洁。
-
-## 许可证
-
-MIT License
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-## 相关链接
-
-- [Mermaid 官方文档](https://mermaid.js.org/)
-- [Svelte 官方文档](https://svelte.dev/)
-- [VSCode 扩展开发指南](https://code.visualstudio.com/api)
+- [Mermaid.js](https://mermaid.js.org/) - 图表语法
+- [D3.js](https://d3js.org/) - 数据可视化
+- [Dagre](https://github.com/dagrejs/dagre) - 图形布局
