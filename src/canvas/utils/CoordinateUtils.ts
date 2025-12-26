@@ -25,7 +25,7 @@ export interface Bounds {
 
 /**
  * Calculate global SVG bounds from node transform and local bounding box
- * 
+ *
  * @param nodeInfo - Node position and size information
  * @returns Global bounds in SVG coordinate system
  */
@@ -40,7 +40,7 @@ export function calculateNodeSvgBounds(nodeInfo: NodeInfo): Bounds {
 
 /**
  * Calculate the bottom center point of a bounds rectangle
- * 
+ *
  * @param bounds - Rectangle bounds
  * @returns Bottom center point
  */
@@ -53,7 +53,7 @@ export function getBottomCenterPoint(bounds: Bounds): Point {
 
 /**
  * Check if a point is within bounds (with optional tolerance)
- * 
+ *
  * @param point - Point to check
  * @param bounds - Bounds to check against
  * @param tolerance - Additional pixels around bounds for hit detection
@@ -75,7 +75,7 @@ export function isPointInBounds(
 /**
  * Transform screen coordinates to SVG coordinates
  * (Manual calculation for testing without DOM)
- * 
+ *
  * @param screenX - Screen X coordinate relative to container
  * @param screenY - Screen Y coordinate relative to container
  * @param translateX - Container translate X
@@ -98,7 +98,7 @@ export function screenToSvgCoordsManual(
 
 /**
  * Transform SVG coordinates to screen coordinates
- * 
+ *
  * @param svgX - SVG X coordinate
  * @param svgY - SVG Y coordinate
  * @param translateX - Container translate X
