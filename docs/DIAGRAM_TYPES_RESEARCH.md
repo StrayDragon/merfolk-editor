@@ -183,7 +183,7 @@ editor.destroy();           // 销毁实例
 ### 7.2 中期目标（3-6 个月）
 
 1. 支持 State Diagram
-2. 支持 Class Diagram  
+2. 支持 Class Diagram
 3. VSCode 插件 MVP
 4. Obsidian 插件 MVP
 

@@ -92,7 +92,7 @@ const editor = new MerfolkEditor(container, {
   theme?: 'light' | 'dark' | 'auto';
   locale?: string;
   readonly?: boolean;
-  
+
   // 功能开关
   features?: {
     codePanel?: boolean;
@@ -100,7 +100,7 @@ const editor = new MerfolkEditor(container, {
     minimap?: boolean;
     dragEdgeCreation?: boolean;
   };
-  
+
   // 回调
   onCodeChange?: (code: string) => void;
   onSelectionChange?: (nodeIds: string[]) => void;
@@ -281,7 +281,7 @@ import { MerfolkEditor } from '@merfolk/react';
 function App() {
   const [code, setCode] = useState(initialCode);
   const editorRef = useRef<MerfolkEditorRef>(null);
-  
+
   return (
     <MerfolkEditor
       ref={editorRef}
@@ -298,7 +298,7 @@ function App() {
   const { editor, code, setCode } = useMerfolkEditor({
     initialCode: '...',
   });
-  
+
   return <div ref={editor} />;
 }
 ```
@@ -336,16 +336,16 @@ const onNodeClick = (nodeId) => console.log('Clicked:', nodeId);
   --merfolk-text-secondary: #666666;
   --merfolk-border-color: #e0e0e0;
   --merfolk-accent-color: #1976d2;
-  
+
   /* 节点 */
   --merfolk-node-bg: #e3f2fd;
   --merfolk-node-border: #90caf9;
   --merfolk-node-selected: #1976d2;
-  
+
   /* 边 */
   --merfolk-edge-color: #333333;
   --merfolk-edge-selected: #1976d2;
-  
+
   /* 尺寸 */
   --merfolk-toolbar-height: 40px;
   --merfolk-border-radius: 4px;

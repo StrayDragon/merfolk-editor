@@ -19,6 +19,8 @@
 
   interface Props {
     code: string;
+    /** 只读模式（非 Flowchart 类型） */
+    readonly?: boolean;
     /** Error callback (null = no error) */
     onError?: (error: string | null) => void;
     onNodeMove?: (nodeId: string, x: number, y: number) => void;
@@ -53,6 +55,7 @@
 
   let {
     code,
+    readonly = false,
     onError,
     onNodeMove,
     onNodeSelect,
@@ -373,6 +376,9 @@
    * 开始拖拽连线
    */
   function startDragEdge(nodeId: string, startX: number, startY: number): void {
+    // 只读模式下不允许创建边
+    if (readonly) return;
+
     // 使用与覆盖层渲染一致的坐标计算
     const bounds = getNodeSvgBounds(nodeId);
     if (!bounds) return;
@@ -1521,6 +1527,9 @@
    * 选择节点（支持多选）
    */
   function selectNode(nodeId: string | null, addToSelection = false): void {
+    // 只读模式下不允许选中
+    if (readonly) return;
+
     if (addToSelection && nodeId) {
       // 多选模式：切换节点选中状态
       if (selectedNodeIds.has(nodeId)) {
@@ -2296,6 +2305,9 @@
   function handleContextMenu(event: MouseEvent): void {
     event.preventDefault();
 
+    // 只读模式下不显示右键菜单
+    if (readonly) return;
+
     // 获取点击的目标元素
     const target = event.target as Element;
     const nodeEl = target.closest('g.node') as SVGGElement | null;
@@ -2482,35 +2494,47 @@
   {#if showHelpPanel}
     <div class="help-panel">
       <div class="help-panel-header">
-        <span>⌨️ 快捷操作</span>
+        <span>⌨️ {readonly ? '视图操作' : '快捷操作'}</span>
         <button class="help-close" onclick={() => showHelpPanel = false}>×</button>
       </div>
       <div class="help-panel-content">
-        <div class="help-section">
-          <h4>节点操作</h4>
-          <div class="help-item"><kbd>右键空白</kbd> 添加节点</div>
-          <div class="help-item"><kbd>双击节点</kbd> 编辑文本</div>
-          <div class="help-item"><kbd>Delete</kbd> 删除选中</div>
-          <div class="help-item"><kbd>Ctrl+A</kbd> 全选节点</div>
-        </div>
-        <div class="help-section">
-          <h4>连线操作</h4>
-          <div class="help-item"><kbd>拖拽端口</kbd> 快速连线</div>
-          <div class="help-item"><kbd>点击端口</kbd> 打开连线对话框</div>
-          <div class="help-item"><kbd>双击边</kbd> 编辑标签</div>
-        </div>
+        {#if !readonly}
+          <div class="help-section">
+            <h4>节点操作</h4>
+            <div class="help-item"><kbd>右键空白</kbd> 添加节点</div>
+            <div class="help-item"><kbd>双击节点</kbd> 编辑文本</div>
+            <div class="help-item"><kbd>Delete</kbd> 删除选中</div>
+            <div class="help-item"><kbd>Ctrl+A</kbd> 全选节点</div>
+          </div>
+          <div class="help-section">
+            <h4>连线操作</h4>
+            <div class="help-item"><kbd>拖拽端口</kbd> 快速连线</div>
+            <div class="help-item"><kbd>点击端口</kbd> 打开连线对话框</div>
+            <div class="help-item"><kbd>双击边</kbd> 编辑标签</div>
+          </div>
+        {/if}
         <div class="help-section">
           <h4>视图操作</h4>
           <div class="help-item"><kbd>滚轮</kbd> 缩放</div>
           <div class="help-item"><kbd>拖拽空白</kbd> 平移画布</div>
-          <div class="help-item"><kbd>Shift+拖拽</kbd> 框选多个</div>
-          <div class="help-item"><kbd>Escape</kbd> 取消选择</div>
+          {#if !readonly}
+            <div class="help-item"><kbd>Shift+拖拽</kbd> 框选多个</div>
+            <div class="help-item"><kbd>Escape</kbd> 取消选择</div>
+          {/if}
         </div>
-        <div class="help-section">
-          <h4>撤销/重做</h4>
-          <div class="help-item"><kbd>Ctrl+Z</kbd> 撤销</div>
-          <div class="help-item"><kbd>Ctrl+Y</kbd> 重做</div>
-        </div>
+        {#if !readonly}
+          <div class="help-section">
+            <h4>撤销/重做</h4>
+            <div class="help-item"><kbd>Ctrl+Z</kbd> 撤销</div>
+            <div class="help-item"><kbd>Ctrl+Y</kbd> 重做</div>
+          </div>
+        {/if}
+        {#if readonly}
+          <div class="help-section readonly-hint">
+            <div class="help-item">当前图类型为预览模式</div>
+            <div class="help-item">请使用代码面板编辑</div>
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
@@ -2850,6 +2874,20 @@
     white-space: nowrap;
     min-width: 80px;
     text-align: center;
+  }
+
+  /* 只读模式提示 */
+  .help-section.readonly-hint {
+    background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 8px;
+  }
+
+  .help-section.readonly-hint .help-item {
+    color: #667eea;
+    font-weight: 500;
+    justify-content: center;
   }
 
   /* 框选矩形 */

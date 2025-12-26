@@ -8,6 +8,7 @@
   import EdgeEditDialog from './EdgeEditDialog.svelte';
   import { SyncEngine } from '../core/sync/SyncEngine';
   import type { ShapeType, StrokeType, ArrowType } from '$core/model/types';
+  import { detectDiagramType, type DiagramTypeInfo } from '../core/utils/DiagramTypeDetector';
 
   interface Props {
     initialCode?: string;
@@ -24,6 +25,17 @@
   let parseError = $state<string | null>(null);
   let showCode = $state(true);
   let selectedNodeId = $state<string | null>(null);
+
+  // 图类型检测
+  let diagramTypeInfo = $state<DiagramTypeInfo>({
+    type: 'flowchart',
+    displayName: 'Flowchart',
+    isEditable: true,
+    description: '流程图',
+  });
+
+  // 是否为可编辑模式
+  const isEditable = $derived(diagramTypeInfo.isEditable);
 
   // 画布编辑模式状态
   let isCanvasEditing = $state(false);
@@ -63,7 +75,12 @@
   onMount(() => {
     if (initialCode) {
       code = initialCode;
-      syncEngine.updateFromCode(initialCode);
+      // 检测图类型
+      diagramTypeInfo = detectDiagramType(initialCode);
+      // 仅 flowchart 需要同步引擎
+      if (diagramTypeInfo.isEditable) {
+        syncEngine.updateFromCode(initialCode);
+      }
     }
 
     // 设置同步引擎回调
@@ -124,11 +141,16 @@
     code = newCode;
     parseError = null;
 
-    // 更新同步引擎
-    try {
-      syncEngine.updateFromCode(newCode);
-    } catch (e) {
-      // 解析错误会在画布渲染时处理
+    // 检测图类型
+    diagramTypeInfo = detectDiagramType(newCode);
+
+    // 更新同步引擎（仅 flowchart 可编辑）
+    if (diagramTypeInfo.isEditable) {
+      try {
+        syncEngine.updateFromCode(newCode);
+      } catch (e) {
+        // 解析错误会在画布渲染时处理
+      }
     }
 
     onCodeChange?.(newCode);
@@ -442,11 +464,22 @@
     onFitToView={fitToView}
     onZoomIn={zoomIn}
     onZoomOut={zoomOut}
-    onUndo={handleUndo}
-    onRedo={handleRedo}
-    canUndo={syncEngine.canUndo()}
-    canRedo={syncEngine.canRedo()}
+    onUndo={isEditable ? handleUndo : undefined}
+    onRedo={isEditable ? handleRedo : undefined}
+    canUndo={isEditable && syncEngine.canUndo()}
+    canRedo={isEditable && syncEngine.canRedo()}
   />
+
+  <!-- 图类型提示 -->
+  {#if !isEditable}
+    <div class="diagram-type-banner">
+      <div class="banner-icon">📊</div>
+      <div class="banner-content">
+        <div class="banner-type">{diagramTypeInfo.displayName}</div>
+        <div class="banner-desc">{diagramTypeInfo.description}</div>
+      </div>
+    </div>
+  {/if}
 
   <div class="editor-content">
     <div
@@ -456,19 +489,20 @@
       <InteractiveCanvas
         bind:this={canvasRef}
         {code}
+        readonly={!isEditable}
         onError={handleRenderError}
-        onNodeSelect={handleNodeSelect}
-        onNodeMove={handleNodeMove}
-        onDeleteNode={handleDeleteNode}
-        onAddNode={handleAddNode}
-        onEditNode={handleEditNode}
-        onAddEdge={handleAddEdge}
-        onDragEdgeCreate={handleDragEdgeCreate}
-        onDeleteEdge={handleDeleteEdge}
-        onEditEdge={handleEditEdge}
-        onInsertNodeOnEdge={handleInsertNodeOnEdge}
-        onEditStart={handleCanvasEditStart}
-        onEditEnd={handleCanvasEditEnd}
+        onNodeSelect={isEditable ? handleNodeSelect : undefined}
+        onNodeMove={isEditable ? handleNodeMove : undefined}
+        onDeleteNode={isEditable ? handleDeleteNode : undefined}
+        onAddNode={isEditable ? handleAddNode : undefined}
+        onEditNode={isEditable ? handleEditNode : undefined}
+        onAddEdge={isEditable ? handleAddEdge : undefined}
+        onDragEdgeCreate={isEditable ? handleDragEdgeCreate : undefined}
+        onDeleteEdge={isEditable ? handleDeleteEdge : undefined}
+        onEditEdge={isEditable ? handleEditEdge : undefined}
+        onInsertNodeOnEdge={isEditable ? handleInsertNodeOnEdge : undefined}
+        onEditStart={isEditable ? handleCanvasEditStart : undefined}
+        onEditEnd={isEditable ? handleCanvasEditEnd : undefined}
       />
     </div>
 
@@ -536,6 +570,39 @@
     width: 100%;
     height: 100%;
     background: #f5f5f5;
+  }
+
+  /* 图类型提示横幅 */
+  .diagram-type-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  }
+
+  .banner-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+
+  .banner-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .banner-type {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .banner-desc {
+    font-size: 12px;
+    opacity: 0.9;
+    margin-top: 2px;
   }
 
   .editor-content {
