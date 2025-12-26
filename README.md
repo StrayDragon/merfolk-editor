@@ -1,20 +1,24 @@
 # Merfolk Editor
 
-一款支持 Mermaid 代码与可视化画布双向同步的流程图编辑器。
+一款支持 Mermaid 代码与可视化画布双向同步的流程图编辑器
 
 <!-- [![NPM Version](https://img.shields.io/npm/v/merfolk-editor)](https://www.npmjs.com/package/merfolk-editor) -->
 <!-- [![License](https://img.shields.io/npm/l/merfolk-editor)](LICENSE) -->
 <!-- [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/) -->
 <!-- [![Svelte](https://img.shields.io/badge/Svelte-5-ff7341)](https://svelte.dev/) -->
 
+> [!note] 其他选择
+> Mermaid官方预览:     [Online FlowChart & Diagrams Editor - Mermaid Live Editor](https://mermaid.live/edit#pako:eNpVkU9vgzAMxb9K5NMm0QpKC00Ok1a69dJpO_Q06CEqhkQrCQpBXQd89wUq7Y9Ptt_vPR_cwUnnCAyKs76cBDeWHLaZIq4e00QY2diKN0cymz30O7Sk0gqvPdnc7TRphK5rqcr7G78ZIZJ0-xFDYoVUH8NNSib_q8KebNM9r62uj3-Vw0X35CmVb8LF_1eEQed6TgvOCj47cUMSbo7gQWlkDm53btCDCk3Fxxm60Z2BFVhhBsy1ORa8PdsMMjU4X83Vu9YVMGta5zS6LcVPTlvn3OJW8tLwXwRVjibRrbLAllMCsA4-gQU-na99GgerRexTGgUeXB2yntMwXvlxtKAhXa7CwYOv6aQ_X7u9qwWNo2DpR6EHmEurzcvtC9Mzhm-Eg3xb)
+> Mermaid官方可UI编辑: [Mermaid Chart - Create complex, visual diagrams with text.](https://www.mermaidchart.com/play?utm_source=mermaid_live_editor&utm_medium=toggle#pako:eNpVjLEOgjAURX_lpZMO_QEGEynKQqIDW-3wUottlL6mNCGG8u-CLHrXc86dmKa7YQXrXjRqizFBW908LDtKYaMbUo-DAs4PuTYJevLmnaHc1QSDpRCcf-w3v1wlEFOzagaSdf45b0h8-4s3GSrZYEgU1C9pR8pwku5ql_t_YqNZqrPssOiQa4wgMCo2fwBnHTpc)
+
 ## 简介
 
-Merfolk Editor 提供了创建和编辑 Mermaid 流程图的流畅体验：
+Merfolk Editor 提供了创建和编辑 Mermaid 流程图的流畅体验:
 
-- **可视化编辑**：在交互式画布上拖拽节点、绘制连线、调整形状
-- **代码同步**：直接编辑 Mermaid 代码，变更即时反映到画布
-- **双向同步**：可视化操作自动更新 Mermaid 代码
-- **自动布局**：内置 Dagre 布局算法，一键整理图表
+- **可视化编辑**:在交互式画布上拖拽节点、绘制连线、调整形状
+- **代码同步**:直接编辑 Mermaid 代码,变更即时反映到画布
+- **双向同步**:可视化操作自动更新 Mermaid 代码
+- **自动布局**:内置 Dagre 布局算法,一键整理图表
 
 
 [演示](https://github.com/user-attachments/assets/8c084ad8-12c6-4dad-a089-b0c4dc6c2ba1)
@@ -23,7 +27,7 @@ Merfolk Editor 提供了创建和编辑 Mermaid 流程图的流畅体验：
 
 | 功能 | 描述 |
 |------|------|
-| 可视化画布 | 基于 D3.js 的 SVG 渲染，支持缩放和平移 |
+| 可视化画布 | 基于 D3.js 的 SVG 渲染,支持缩放和平移 |
 | 节点操作 | 添加、编辑、移动、删除节点 |
 | 边连接 | 从端口拖拽创建连线 |
 | 代码编辑器 | 实时 Mermaid 代码同步 |
@@ -35,10 +39,10 @@ Merfolk Editor 提供了创建和编辑 Mermaid 流程图的流畅体验：
 
 | 类型 | 支持程度 |
 |------|----------|
-| Flowchart（流程图） | 完全支持（可视化编辑 + 代码同步） |
-| 其他类型（时序图、类图、状态图等） | 仅支持预览（只读） |
+| Flowchart(流程图) | 完全支持(可视化编辑 + 代码同步) |
+| 其他类型(时序图、类图、状态图等) | 仅支持预览(只读) |
 
-> 注意：当前版本专注于 **Flowchart** 的完整编辑体验，其他 Mermaid 图表类型可正常渲染和预览，但无法进行可视化编辑。
+> 注意:当前版本专注于 **Flowchart** 的完整编辑体验,其他 Mermaid 图表类型可正常渲染和预览,但无法进行可视化编辑.
 
 
 ## 开发

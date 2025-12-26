@@ -2,14 +2,14 @@
   /**
    * NodeOverlay - 节点选中时的覆盖层 (draw.io 风格)
    *
-   * 简化版：只显示底部连接点（符合流程图从上到下的流向）
-   * 使用屏幕坐标，配合 transform 变化更新
+   * 简化版:只显示底部连接点(符合流程图从上到下的流向)
+   * 使用屏幕坐标,配合 transform 变化更新
    */
   interface NodeBounds {
     x: number;      // 屏幕坐标 X (相对于容器)
     y: number;      // 屏幕坐标 Y (相对于容器)
-    width: number;  // 屏幕宽度（已缩放）
-    height: number; // 屏幕高度（已缩放）
+    width: number;  // 屏幕宽度(已缩放)
+    height: number; // 屏幕高度(已缩放)
   }
 
   interface Props {
@@ -28,7 +28,7 @@
     onAddEdge,
   }: Props = $props();
 
-  // 直接使用 bounds（已经是屏幕坐标）
+  // 直接使用 bounds(已经是屏幕坐标)
   const x = $derived(bounds.x);
   const y = $derived(bounds.y);
   const width = $derived(bounds.width);
@@ -38,7 +38,7 @@
   const portX = $derived(x + width / 2);
   const portY = $derived(y + height);
 
-  // 工具栏位置（节点上方）
+  // 工具栏位置(节点上方)
   const toolbarX = $derived(x + width / 2);
   const toolbarY = $derived(y - 8);
 </script>
@@ -68,7 +68,7 @@
   </svg>
 </button>
 
-<!-- 浮动工具栏（紧凑版） -->
+<!-- 浮动工具栏(紧凑版) -->
 <div
   class="toolbar"
   style="left: {toolbarX}px; top: {toolbarY}px;"

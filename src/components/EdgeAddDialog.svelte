@@ -8,7 +8,7 @@
   }
 
   interface Props {
-    /** 源节点 ID（已选中的节点） */
+    /** 源节点 ID(已选中的节点) */
     sourceNodeId: string;
     /** 所有可选节点 */
     nodes: NodeOption[];
@@ -29,7 +29,7 @@
   let arrowType = $state<ArrowType>('arrow');
   let inputEl: HTMLSelectElement;
 
-  // 可用的目标节点（排除源节点）
+  // 可用的目标节点(排除源节点)
   const targetNodes = $derived(nodes.filter(n => n.id !== sourceNodeId));
 
   // 源节点信息
@@ -122,7 +122,7 @@
           bind:value={targetNodeId}
         >
           <option value="">-- 选择目标节点 --</option>
-          <option value={NEW_NODE_ID} class="new-node-option">✨ 新节点（自动创建）</option>
+          <option value={NEW_NODE_ID} class="new-node-option">✨ 新节点(自动创建)</option>
           <option disabled>────────────</option>
           {#each targetNodes as node}
             <option value={node.id}>{node.text} ({node.id})</option>
@@ -131,7 +131,7 @@
       </div>
 
       <div class="form-group">
-        <label for="edge-text">连接文本（可选）</label>
+        <label for="edge-text">连接文本(可选)</label>
         <input
           id="edge-text"
           type="text"

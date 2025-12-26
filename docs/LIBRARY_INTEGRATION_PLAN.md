@@ -2,7 +2,7 @@
 
 ## 1. 概述
 
-本文档规划 Merfolk Editor 作为可嵌入库的架构设计和集成方案。
+本文档规划 Merfolk Editor 作为可嵌入库的架构设计和集成方案.
 
 ## 2. 目标平台
 
@@ -62,14 +62,14 @@
 
 ```
 packages/
-├── @merfolk/core          # 核心逻辑（无 UI）
+├── @merfolk/core          # 核心逻辑(无 UI)
 │   ├── parser/
 │   ├── serializer/
 │   ├── model/
 │   ├── sync/
 │   └── command/
 │
-├── @merfolk/editor        # 完整编辑器（含 UI）
+├── @merfolk/editor        # 完整编辑器(含 UI)
 │   ├── components/
 │   ├── canvas/
 │   └── lib/
@@ -175,7 +175,7 @@ editor.once('ready', () => {});
 ```typescript
 import { MerfolkCore } from '@merfolk/core';
 
-// 纯逻辑操作，无 UI
+// 纯逻辑操作,无 UI
 const core = new MerfolkCore();
 
 // 解析代码
@@ -209,17 +209,17 @@ vscode-merfolk/
 └── README.md
 ```
 
-**核心功能：**
+**核心功能:**
 
-1. **文件关联**：`.mmd`, `.mermaid` 文件自动打开
-2. **双向同步**：编辑器 ↔ 文本文件
-3. **主题适配**：跟随 VSCode 主题
-4. **命令支持**：
+1. **文件关联**:`.mmd`, `.mermaid` 文件自动打开
+2. **双向同步**:编辑器 ↔ 文本文件
+3. **主题适配**:跟随 VSCode 主题
+4. **命令支持**:
    - `merfolk.openPreview` - 打开预览
    - `merfolk.exportSvg` - 导出 SVG
    - `merfolk.exportPng` - 导出 PNG
 
-**消息协议：**
+**消息协议:**
 
 ```typescript
 // Webview -> Extension
@@ -250,14 +250,14 @@ obsidian-merfolk/
 └── README.md
 ```
 
-**核心功能：**
+**核心功能:**
 
-1. **代码块渲染**：```` ```merfolk ```` 代码块
-2. **独立视图**：专用编辑视图
-3. **内部链接**：支持 `[[]]` 链接语法
-4. **主题适配**：跟随 Obsidian 主题
+1. **代码块渲染**:```` ```merfolk ```` 代码块
+2. **独立视图**:专用编辑视图
+3. **内部链接**:支持 `[[]]` 链接语法
+4. **主题适配**:跟随 Obsidian 主题
 
-**集成方式：**
+**集成方式:**
 
 ```typescript
 // 代码块处理器
@@ -420,32 +420,32 @@ editor.setLocale({
 
 ## 8. 实施路线图
 
-### Phase 1: 库 API 稳定化（2 周）
+### Phase 1: 库 API 稳定化(2 周)
 
 - [ ] 完善事件系统
 - [ ] 添加主题系统基础
 - [ ] 统一错误处理
 - [ ] API 文档
 
-### Phase 2: 核心分离（2 周）
+### Phase 2: 核心分离(2 周)
 
 - [ ] 分离 `@merfolk/core`
 - [ ] 无头模式实现
 - [ ] 单元测试补充
 
-### Phase 3: 框架包装（2 周）
+### Phase 3: 框架包装(2 周)
 
 - [ ] `@merfolk/react` 实现
 - [ ] `@merfolk/vue` 实现
 - [ ] 示例项目
 
-### Phase 4: 编辑器插件（4 周）
+### Phase 4: 编辑器插件(4 周)
 
 - [ ] VSCode 扩展 MVP
 - [ ] Obsidian 插件 MVP
 - [ ] E2E 测试
 
-### Phase 5: 生态完善（持续）
+### Phase 5: 生态完善(持续)
 
 - [ ] 更多图类型支持
 - [ ] 插件系统
@@ -465,9 +465,9 @@ editor.setLocale({
 
 ### 9.2 依赖管理
 
-- **Mermaid**: Peer dependency，用户自行安装
-- **Svelte**: 内部依赖，编译后移除
-- **D3**: 内部依赖，可选 tree-shaking
+- **Mermaid**: Peer dependency,用户自行安装
+- **Svelte**: 内部依赖,编译后移除
+- **D3**: 内部依赖,可选 tree-shaking
 
 ### 9.3 版本策略
 

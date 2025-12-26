@@ -12,9 +12,9 @@
 
   interface Props {
     initialCode?: string;
-    /** 代码变更回调（外部使用） */
+    /** 代码变更回调(外部使用) */
     onCodeChange?: (code: string) => void;
-    /** 画布编辑后延迟同步的时间（ms） */
+    /** 画布编辑后延迟同步的时间(ms) */
     syncDelay?: number;
   }
 
@@ -68,7 +68,7 @@
   // 同步引擎
   const syncEngine = new SyncEngine({ debounceDelay: 300 });
 
-  // 标记是否正在从画布同步（避免循环更新）
+  // 标记是否正在从画布同步(避免循环更新)
   let isSyncingFromCanvas = false;
 
   // Parse initial code
@@ -110,7 +110,7 @@
    * 全局键盘事件处理
    */
   function handleGlobalKeyDown(e: KeyboardEvent): void {
-    // 如果焦点在输入框或编辑器中，不处理快捷键
+    // 如果焦点在输入框或编辑器中,不处理快捷键
     const target = e.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
       return;
@@ -135,7 +135,7 @@
    * Handle code changes from editor
    */
   function handleCodeChange(newCode: string): void {
-    // 如果是从画布同步来的，不需要再更新
+    // 如果是从画布同步来的,不需要再更新
     if (isSyncingFromCanvas) return;
 
     code = newCode;
@@ -144,7 +144,7 @@
     // 检测图类型
     diagramTypeInfo = detectDiagramType(newCode);
 
-    // 更新同步引擎（仅 flowchart 可编辑）
+    // 更新同步引擎(仅 flowchart 可编辑)
     if (diagramTypeInfo.isEditable) {
       try {
         syncEngine.updateFromCode(newCode);
@@ -171,16 +171,16 @@
   }
 
   /**
-   * Handle node move (仅保存位置，不触发代码更新)
+   * Handle node move (仅保存位置,不触发代码更新)
    */
   function handleNodeMove(nodeId: string, x: number, y: number): void {
     console.log(`[Editor] Node ${nodeId} moved to (${x}, ${y})`);
-    // 更新同步引擎保存位置（不会触发代码更新）
+    // 更新同步引擎保存位置(不会触发代码更新)
     syncEngine.updateNodePosition(nodeId, x, y);
   }
 
   /**
-   * 获取同步引擎（供外部使用）
+   * 获取同步引擎(供外部使用)
    */
   export function getSyncEngine(): SyncEngine {
     return syncEngine;
@@ -262,7 +262,7 @@
   }
 
   /**
-   * 编辑边文本（打开对话框）
+   * 编辑边文本(打开对话框)
    */
   function handleEditEdge(edgeId: string, sourceId: string, targetId: string, currentText?: string): void {
     // 获取边的当前属性
@@ -305,7 +305,7 @@
   }
 
   /**
-   * 添加节点（从画布右键菜单触发）
+   * 添加节点(从画布右键菜单触发)
    */
   function handleAddNode(x: number, y: number, shape: ShapeType = 'rect'): void {
     try {
@@ -322,7 +322,7 @@
   }
 
   /**
-   * 编辑节点（打开节点编辑对话框）
+   * 编辑节点(打开节点编辑对话框)
    */
   function handleEditNode(nodeId: string): void {
     const model = syncEngine.getModel();
@@ -357,7 +357,7 @@
   }
 
   /**
-   * 添加边（打开边添加对话框）
+   * 添加边(打开边添加对话框)
    */
   function handleAddEdge(sourceNodeId: string): void {
     edgeDialogState = {
@@ -367,7 +367,7 @@
   }
 
   /**
-   * 拖拽创建边（直接创建，不打开对话框）
+   * 拖拽创建边(直接创建,不打开对话框)
    */
   function handleDragEdgeCreate(sourceId: string, targetId: string): void {
     try {
@@ -388,7 +388,7 @@
     arrowType: ArrowType
   ): void {
     try {
-      // 特殊情况：创建新节点并连接
+      // 特殊情况:创建新节点并连接
       if (targetId === '__new__') {
         // 生成新节点 ID
         const newNodeId = generateNewNodeId();
@@ -429,7 +429,7 @@
 
   /**
    * 画布编辑开始
-   * 进入编辑模式，遮盖代码区域
+   * 进入编辑模式,遮盖代码区域
    */
   function handleCanvasEditStart(): void {
     isCanvasEditing = true;

@@ -35,10 +35,10 @@ interface HistoryEntry {
  * 同步引擎
  * 负责协调 Mermaid 代码和画布之间的双向同步
  *
- * 注意：Mermaid 标准语法不支持位置信息，所以：
+ * 注意:Mermaid 标准语法不支持位置信息,所以:
  * - 位置信息单独存储在 nodePositions 中
- * - 代码同步只处理结构变更（添加/删除节点和边）
- * - 拖拽节点不会改变代码（除非添加/删除操作）
+ * - 代码同步只处理结构变更(添加/删除节点和边)
+ * - 拖拽节点不会改变代码(除非添加/删除操作)
  */
 export class SyncEngine {
   private parser: MermaidParser;
@@ -74,7 +74,7 @@ export class SyncEngine {
   }
 
   /**
-   * 从代码更新模型（代码 → 模型）
+   * 从代码更新模型(代码 → 模型)
    */
   updateFromCode(code: string): FlowchartModel {
     try {
@@ -96,7 +96,7 @@ export class SyncEngine {
   }
 
   /**
-   * 更新节点位置（仅保存位置，不触发代码更新）
+   * 更新节点位置(仅保存位置,不触发代码更新)
    */
   updateNodePosition(nodeId: string, x: number, y: number): void {
     this.nodePositions.set(nodeId, { x, y });
@@ -164,7 +164,7 @@ export class SyncEngine {
   }
 
   /**
-   * 更新节点（文本和形状）
+   * 更新节点(文本和形状)
    */
   updateNode(nodeId: string, text: string, shape: ShapeType): void {
     const node = this.model.getNode(nodeId);
@@ -233,7 +233,7 @@ export class SyncEngine {
       shape,
     });
 
-    // 创建两条新边：source -> newNode, newNode -> target
+    // 创建两条新边:source -> newNode, newNode -> target
     // 保留原边的 stroke 类型
     this.model.addEdge({
       source: sourceId,
@@ -279,7 +279,7 @@ export class SyncEngine {
   }
 
   /**
-   * 获取所有节点信息（用于边添加对话框）
+   * 获取所有节点信息(用于边添加对话框)
    */
   getNodesForEdgeDialog(): { id: string; text: string }[] {
     return this.model.nodes.map(n => ({ id: n.id, text: n.text }));
@@ -328,7 +328,7 @@ export class SyncEngine {
   }
 
   /**
-   * 防抖序列化（用于结构变更）
+   * 防抖序列化(用于结构变更)
    */
   private debouncedSerialize(): void {
     if (this.debounceTimer) {
@@ -343,7 +343,7 @@ export class SyncEngine {
   }
 
   /**
-   * 导出位置数据（用于持久化）
+   * 导出位置数据(用于持久化)
    */
   exportPositions(): Record<string, { x: number; y: number }> {
     const result: Record<string, { x: number; y: number }> = {};

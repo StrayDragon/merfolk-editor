@@ -108,7 +108,7 @@
       </div>
 
       <div class="form-group">
-        <label for="edge-text">连接文本（可选）</label>
+        <label for="edge-text">连接文本(可选)</label>
         <input
           id="edge-text"
           type="text"

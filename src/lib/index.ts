@@ -132,7 +132,7 @@ export default class MerfolkEditor {
   }
 
   /**
-   * 获取内部 SyncEngine 实例（高级用法）
+   * 获取内部 SyncEngine 实例(高级用法)
    */
   getSyncEngine(): SyncEngine {
     return (this.editor as any).getSyncEngine();

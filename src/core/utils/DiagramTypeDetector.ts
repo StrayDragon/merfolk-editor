@@ -237,7 +237,7 @@ const DIAGRAM_PATTERNS: Array<{
  * 检测 Mermaid 代码的图类型
  */
 export function detectDiagramType(code: string): DiagramTypeInfo {
-  // 移除 frontmatter（如 ---\ntitle: xxx\n---）
+  // 移除 frontmatter(如 ---\ntitle: xxx\n---)
   const cleanCode = code.replace(/^---[\s\S]*?---\s*/m, '').trim();
 
   for (const { pattern, type, displayName, isEditable, description } of DIAGRAM_PATTERNS) {

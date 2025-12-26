@@ -19,7 +19,7 @@
 
   interface Props {
     code: string;
-    /** 只读模式（非 Flowchart 类型） */
+    /** 只读模式(非 Flowchart 类型) */
     readonly?: boolean;
     /** Error callback (null = no error) */
     onError?: (error: string | null) => void;
@@ -31,9 +31,9 @@
     onAddNode?: (x: number, y: number, shape?: ShapeType) => void;
     /** 编辑节点文本回调 */
     onEditNode?: (nodeId: string) => void;
-    /** 添加边回调（打开对话框模式） */
+    /** 添加边回调(打开对话框模式) */
     onAddEdge?: (sourceNodeId: string) => void;
-    /** 拖拽创建边回调（直接创建模式） */
+    /** 拖拽创建边回调(直接创建模式) */
     onDragEdgeCreate?: (sourceId: string, targetId: string) => void;
     /** 删除边回调 */
     onDeleteEdge?: (edgeId: string, sourceId: string, targetId: string) => void;
@@ -194,11 +194,11 @@
   // Re-render when code changes (with debounce)
   let renderTimeout: ReturnType<typeof setTimeout>;
 
-  // 视图状态保持：记录是否是首次渲染
+  // 视图状态保持:记录是否是首次渲染
   let isFirstRender = true;
-  // 上一次的代码，用于判断是否需要完全重渲染
+  // 上一次的代码,用于判断是否需要完全重渲染
   let lastRenderedCode = '';
-  // 待聚焦的节点 ID（新添加的节点）
+  // 待聚焦的节点 ID(新添加的节点)
   let pendingFocusNodeId: string | null = null;
 
   $effect(() => {
@@ -211,7 +211,7 @@
   });
 
   /**
-   * 设置待聚焦的节点（用于新添加节点后自动滚动到该节点）
+   * 设置待聚焦的节点(用于新添加节点后自动滚动到该节点)
    */
   export function focusOnNode(nodeId: string): void {
     pendingFocusNodeId = nodeId;
@@ -222,7 +222,7 @@
 
     const id = `mermaid-interactive-${++renderCounter}`;
 
-    // 保存当前视图状态（仅在非首次渲染时）
+    // 保存当前视图状态(仅在非首次渲染时)
     const savedViewState = !isFirstRender ? {
       scale,
       translateX,
@@ -235,11 +235,11 @@
       // 首先尝试解析代码
       await mermaid.parse(mermaidCode);
 
-      // 解析成功，渲染图表
+      // 解析成功,渲染图表
       const { svg } = await mermaid.render(id, mermaidCode);
       svgContainerEl.innerHTML = svg;
 
-      // 设置交互（传递解析后的模型信息）
+      // 设置交互(传递解析后的模型信息)
       setupInteraction(mermaidCode);
 
       // 视图状态恢复逻辑
@@ -262,7 +262,7 @@
           }
         }
 
-        // 如果有待聚焦的节点，滚动到该节点
+        // 如果有待聚焦的节点,滚动到该节点
         if (pendingFocusNodeId) {
           requestAnimationFrame(() => {
             scrollToNodeSmooth(pendingFocusNodeId!, true);
@@ -271,7 +271,7 @@
           });
         }
       } else {
-        // 首次渲染，执行默认的居中操作
+        // 首次渲染,执行默认的居中操作
         setupZoomPan();
         isFirstRender = false;
       }
@@ -283,7 +283,7 @@
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : 'Render error';
 
-      // 通知父组件有错误，但不破坏画布
+      // 通知父组件有错误,但不破坏画布
       onError?.(errorMsg);
 
       // 尝试渲染一个简单的占位符或保持之前的画布状态
@@ -301,7 +301,7 @@
           </div>
         `;
       }
-      // 如果已经有画布内容，保持不变，让用户继续操作
+      // 如果已经有画布内容,保持不变,让用户继续操作
     }
   }
 
@@ -328,7 +328,7 @@
       nodeScreenY >= padding &&
       nodeScreenY <= containerRect.height - padding;
 
-    // 如果节点不在视口内，平滑滚动到节点位置
+    // 如果节点不在视口内,平滑滚动到节点位置
     if (!isInView) {
       const targetTranslateX = containerRect.width / 2 - nodeInfo.x * scale;
       const targetTranslateY = containerRect.height / 2 - nodeInfo.y * scale;
@@ -383,7 +383,7 @@
     const bounds = getNodeSvgBounds(nodeId);
     if (!bounds) return;
 
-    // 从节点底部中心开始（与连接点位置一致）
+    // 从节点底部中心开始(与连接点位置一致)
     const sourceX = bounds.x + bounds.width / 2;
     const sourceY = bounds.y + bounds.height;
 
@@ -439,7 +439,7 @@
       const bounds = getNodeSvgBounds(id);
       if (!bounds) continue;
 
-      // 检查鼠标是否在节点范围内（增加容差提高易用性）
+      // 检查鼠标是否在节点范围内(增加容差提高易用性)
       const tolerance = 10;
       if (
         svgCoords.x >= bounds.x - tolerance &&
@@ -499,7 +499,7 @@
       hoverTargetId: null,
     };
 
-    // 如果有有效目标，创建边
+    // 如果有有效目标,创建边
     if (targetId && targetId !== sourceId) {
       onDragEdgeCreate?.(sourceId, targetId);
     }
@@ -565,7 +565,7 @@
       });
 
       // 禁用拖拽 - 只有点击选择
-      // 点击选择（支持 Ctrl/Cmd 多选）
+      // 点击选择(支持 Ctrl/Cmd 多选)
       nodeEl.addEventListener('click', (e) => {
         e.stopPropagation();
         const addToSelection = e.ctrlKey || e.metaKey;
@@ -578,7 +578,7 @@
         onEditNode?.(nodeId);
       });
 
-      // 添加视觉反馈 - 改为指针（不再支持拖拽）
+      // 添加视觉反馈 - 改为指针(不再支持拖拽)
       nodeEl.style.cursor = 'pointer';
     });
 
@@ -591,7 +591,7 @@
       model = null;
     }
 
-    // 查找所有边和标签（转换为数组以避免 NodeList 的兼容性问题）
+    // 查找所有边和标签(转换为数组以避免 NodeList 的兼容性问题)
     const edgePathList = Array.from(
       svg.querySelectorAll(
         'path[data-edge="true"], path.flowchart-link, g.edgePaths path, .edgePath path'
@@ -681,7 +681,7 @@
         });
       });
     } else {
-      // 后备方案：使用几何匹配
+      // 后备方案:使用几何匹配
       const usedLabels = new Set<number>();
       edgePathList.forEach((path, index) => {
         const endpoints = resolveEdgeEndpoints(path);
@@ -766,7 +766,7 @@
     // 点击空白处取消选择
     svg.addEventListener('click', (e) => {
       const target = e.target as Element;
-      // 如果点击的是节点或边，不取消选择（由各自的点击事件处理）
+      // 如果点击的是节点或边,不取消选择(由各自的点击事件处理)
       if (target.closest('g.node') || target.closest('path.flowchart-link') || target.closest('.edgePath')) {
         return;
       }
@@ -811,7 +811,7 @@
     let id = nodeEl.getAttribute('data-id');
     if (id) return id;
 
-    // 尝试从 id 属性获取（去除前缀）
+    // 尝试从 id 属性获取(去除前缀)
     id = nodeEl.id;
     if (id) {
       // Mermaid 生成的 ID 格式: flowchart-NodeId-123
@@ -949,7 +949,7 @@
   }
 
   /**
-   * 构建边路径候选列表，带上端点和样式信息
+   * 构建边路径候选列表,带上端点和样式信息
    */
   function buildEdgePathCandidates(paths: SVGPathElement[]): EdgePathCandidate[] {
     return paths.map((path) => ({
@@ -998,7 +998,7 @@
     );
     if (directMatch) return directMatch;
 
-    // 对于双向边，允许任意方向匹配
+    // 对于双向边,允许任意方向匹配
     if (isBidirectionalEdge(edge)) {
       const reversed = candidates.find(
         (c) =>
@@ -1009,7 +1009,7 @@
       if (reversed) return reversed;
     }
 
-    // 宽松匹配：只要任一端点对得上就优先使用
+    // 宽松匹配:只要任一端点对得上就优先使用
     const looseMatch = candidates.find(
       (c) =>
         !usedPaths.has(c.path) &&
@@ -1029,7 +1029,7 @@
   }
 
   /**
-   * 为路径挑选最近的标签，避免重复使用
+   * 为路径挑选最近的标签,避免重复使用
    */
   function pickLabelForPath(
     path: SVGPathElement,
@@ -1057,13 +1057,13 @@
       const labelCenter = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
       const distance = Math.hypot(labelCenter.x - pathCenter.x, labelCenter.y - pathCenter.y);
 
-      // 计算匹配分数：距离越近分数越高，有文本的标签分数更高
+      // 计算匹配分数:距离越近分数越高,有文本的标签分数更高
       let score = 0;
       if (labelText) {
-        // 有文本的标签优先，但距离不能太远
+        // 有文本的标签优先,但距离不能太远
         score = distance < MAX_LABEL_DISTANCE ? 1000 - distance : 0;
       } else {
-        // 没有文本的标签，只有在距离很近时才选择
+        // 没有文本的标签,只有在距离很近时才选择
         score = distance < MIN_LABEL_DISTANCE ? 500 - distance : 0;
       }
 
@@ -1072,7 +1072,7 @@
       }
     });
 
-    // 按分数排序，分数高的优先
+    // 按分数排序,分数高的优先
     candidates.sort((a, b) => b.score - a.score);
 
     if (candidates.length > 0) {
@@ -1085,7 +1085,7 @@
   }
 
   /**
-   * 更新节点位置（保留用于未来可能的拖拽功能）
+   * 更新节点位置(保留用于未来可能的拖拽功能)
    */
   function updateNodePosition(nodeId: string, x: number, y: number): void {
     const nodeInfo = nodeInfoMap.get(nodeId);
@@ -1127,7 +1127,7 @@
       maxY = Math.max(maxY, nodeY + bbox.y + bbox.height);
     }
 
-    // 添加边距（确保节点不会贴着边界）
+    // 添加边距(确保节点不会贴着边界)
     minX -= CANVAS_PADDING;
     minY -= CANVAS_PADDING;
     maxX += CANVAS_PADDING;
@@ -1142,7 +1142,7 @@
   }
 
   /**
-   * 更新 SVG viewBox 以适应所有节点（支持无限画布）
+   * 更新 SVG viewBox 以适应所有节点(支持无限画布)
    */
   function updateSvgViewBox(): void {
     const svg = svgContainerEl?.querySelector('svg');
@@ -1160,7 +1160,7 @@
   }
 
   /**
-   * 将绝对坐标的路径点转换为相对（沿连线 + 垂直偏移）的表示
+   * 将绝对坐标的路径点转换为相对(沿连线 + 垂直偏移)的表示
    */
   function buildRelativePoints(points: Point[], source: NodeInfo, target: NodeInfo): RelativePoint[] {
     const dirX = target.initialX - source.initialX;
@@ -1204,7 +1204,7 @@
   }
 
   /**
-   * 取得更新后的路径点，优先复用 Mermaid 给出的 data-points 形态
+   * 取得更新后的路径点,优先复用 Mermaid 给出的 data-points 形态
    */
   function getUpdatedEdgePoints(edge: EdgeInfo, source: NodeInfo, target: NodeInfo): Point[] {
     if (edge.relativePoints?.length) {
@@ -1220,7 +1220,7 @@
   }
 
   /**
-   * 通过 Path 的真实长度获取标签中心，保持与曲线一致
+   * 通过 Path 的真实长度获取标签中心,保持与曲线一致
    */
   function getLabelPositionFromPath(path: SVGPathElement, points: Point[]): Point {
     try {
@@ -1242,7 +1242,7 @@
   }
 
   /**
-   * 找到应该移动的标签容器（优先 edgeLabel/label）
+   * 找到应该移动的标签容器(优先 edgeLabel/label)
    */
   function getLabelContainer(label: SVGGElement | SVGTextElement | undefined): SVGGElement | SVGTextElement | undefined {
     if (!label) return undefined;
@@ -1260,7 +1260,7 @@
   }
 
   /**
-   * 创建随边移动的覆盖标签，避免依赖 Mermaid 的定位
+   * 创建随边移动的覆盖标签,避免依赖 Mermaid 的定位
    */
   function createOverlayLabel(path: SVGPathElement, text: string): SVGTextElement | null {
     const svg = path.ownerSVGElement;
@@ -1276,7 +1276,7 @@
     label.setAttribute('font-family', 'sans-serif');
     label.style.pointerEvents = 'none';
 
-    // 挂到 SVG 顶层，便于统一 reposition
+    // 挂到 SVG 顶层,便于统一 reposition
     svg.appendChild(label);
     return label;
   }
@@ -1326,7 +1326,7 @@
       return;
     }
 
-    // 计算新的路径点，尽可能保持 Mermaid 原有的曲线路径与偏移
+    // 计算新的路径点,尽可能保持 Mermaid 原有的曲线路径与偏移
     const points = getUpdatedEdgePoints(edge, sourceNode, targetNode);
 
     // 生成新的路径
@@ -1334,7 +1334,7 @@
 
     edge.element.setAttribute('d', pathD);
 
-    // 恢复所有边属性 - 这是关键！
+    // 恢复所有边属性 - 这是关键!
     if (edge.markerStart) {
       edge.element.setAttribute('marker-start', edge.markerStart);
     } else {
@@ -1393,7 +1393,7 @@
     const sourcePoint = getIntersectionPoint(sourceCenter, { x: dx, y: dy }, source);
     const targetPoint = getIntersectionPoint(targetCenter, { x: -dx, y: -dy }, target);
 
-    // 生成中间点（用于曲线）
+    // 生成中间点(用于曲线)
     const midX = (sourcePoint.x + targetPoint.x) / 2;
     const midY = (sourcePoint.y + targetPoint.y) / 2;
 
@@ -1524,14 +1524,14 @@
   }
 
   /**
-   * 选择节点（支持多选）
+   * 选择节点(支持多选)
    */
   function selectNode(nodeId: string | null, addToSelection = false): void {
     // 只读模式下不允许选中
     if (readonly) return;
 
     if (addToSelection && nodeId) {
-      // 多选模式：切换节点选中状态
+      // 多选模式:切换节点选中状态
       if (selectedNodeIds.has(nodeId)) {
         selectedNodeIds.delete(nodeId);
         const node = nodeInfoMap.get(nodeId);
@@ -1550,7 +1550,7 @@
       // 触发新的 Set 引用以更新响应式
       selectedNodeIds = new Set(selectedNodeIds);
     } else {
-      // 单选模式：清除所有选中，选中新节点
+      // 单选模式:清除所有选中,选中新节点
       clearAllSelections();
 
       selectedNodeId = nodeId;
@@ -1569,7 +1569,7 @@
   }
 
   /**
-   * 清除所有选中状态（包括节点和边）
+   * 清除所有选中状态(包括节点和边)
    */
   function clearAllSelections(): void {
     // 清除节点选择
@@ -1587,7 +1587,7 @@
   }
 
   /**
-   * 选中多个节点（用于框选）
+   * 选中多个节点(用于框选)
    */
   function selectMultipleNodes(nodeIds: string[]): void {
     clearAllSelections();
@@ -1630,7 +1630,7 @@
   let lastX = 0;
   let lastY = 0;
 
-  // 初始 SVG 尺寸（用于居中）
+  // 初始 SVG 尺寸(用于居中)
   let initialSvgWidth = 0;
   let initialSvgHeight = 0;
 
@@ -1798,7 +1798,7 @@
         return;
       }
 
-      // 删除选中的节点（支持批量删除）
+      // 删除选中的节点(支持批量删除)
       if (selectedNodeIds.size > 0) {
         const nodesToDelete = Array.from(selectedNodeIds);
         for (const nodeId of nodesToDelete) {
@@ -1886,7 +1886,7 @@
     const containerRect = containerEl.getBoundingClientRect();
     const padding = 40;
 
-    // 计算适合的缩放比例（基于动态计算的边界）
+    // 计算适合的缩放比例(基于动态计算的边界)
     const scaleX = (containerRect.width - padding * 2) / viewBox.width;
     const scaleY = (containerRect.height - padding * 2) / viewBox.height;
     scale = Math.min(scaleX, scaleY, 1);
@@ -1918,10 +1918,10 @@
     const nodeInfo = nodeInfoMap.get(nodeId);
     if (!nodeInfo) return null;
 
-    // 获取节点的 bounding box（本地坐标系）
+    // 获取节点的 bounding box(本地坐标系)
     const bbox = nodeInfo.element.getBBox();
 
-    // 计算全局坐标：transform 位移 + 本地坐标偏移
+    // 计算全局坐标:transform 位移 + 本地坐标偏移
     return {
       x: nodeInfo.x + bbox.x,
       y: nodeInfo.y + bbox.y,
@@ -1931,7 +1931,7 @@
   }
 
   /**
-   * 获取选中节点的边界信息（SVG 坐标系）
+   * 获取选中节点的边界信息(SVG 坐标系)
    * 用于在 SVG 内部渲染覆盖层
    */
   function getSelectedNodeSvgBounds(): { x: number; y: number; width: number; height: number } | null {
@@ -1939,7 +1939,7 @@
     return getNodeSvgBounds(selectedNodeId);
   }
 
-  // 响应式获取选中节点边界（SVG 坐标）
+  // 响应式获取选中节点边界(SVG 坐标)
   const selectedNodeSvgBounds = $derived.by(() => {
     if (!selectedNodeId) return null;
     return getSelectedNodeSvgBounds();
@@ -1958,7 +1958,7 @@
       existingOverlay.remove();
     }
 
-    // 如果没有选中节点或多选，不显示覆盖层
+    // 如果没有选中节点或多选,不显示覆盖层
     if (!selectedNodeId || selectedNodeIds.size !== 1) return;
 
     const bounds = getSelectedNodeSvgBounds();
@@ -2018,7 +2018,7 @@
     vLine.setAttribute('stroke-linecap', 'round');
     portGroup.appendChild(vLine);
 
-    // 连接点点击事件（打开对话框模式）
+    // 连接点点击事件(打开对话框模式)
     portGroup.addEventListener('click', (e) => {
       e.stopPropagation();
       if (selectedNodeId) {
@@ -2026,8 +2026,8 @@
       }
     });
 
-    // 连接点拖拽事件（拖拽连线模式）
-    // 将 nodeId 存储在 data 属性中，避免闭包问题
+    // 连接点拖拽事件(拖拽连线模式)
+    // 将 nodeId 存储在 data 属性中,避免闭包问题
     portGroup.setAttribute('data-node-id', selectedNodeId);
     portGroup.addEventListener('mousedown', (e) => {
       const nodeId = portGroup.getAttribute('data-node-id');
@@ -2068,18 +2068,18 @@
       existingDragOverlay.remove();
     }
 
-    // 如果没有激活拖拽，不渲染
+    // 如果没有激活拖拽,不渲染
     if (!dragEdge.isActive) return;
 
     const sourceNodeId = dragEdge.sourceNodeId;
     const bounds = getNodeSvgBounds(sourceNodeId);
     if (!bounds) return;
 
-    // 起始点：节点底部中心（与连接点位置一致）
+    // 起始点:节点底部中心(与连接点位置一致)
     const startX = bounds.x + bounds.width / 2;
     const startY = bounds.y + bounds.height;
 
-    // 终点：当前鼠标位置（已转换为 SVG 坐标）
+    // 终点:当前鼠标位置(已转换为 SVG 坐标)
     const endX = dragEdge.currentPoint.x;
     const endY = dragEdge.currentPoint.y;
 
@@ -2197,7 +2197,7 @@
   });
 
   /**
-   * 获取选中节点的屏幕坐标（用于工具栏定位）
+   * 获取选中节点的屏幕坐标(用于工具栏定位)
    */
   function getSelectedNodeScreenBounds(): { x: number; y: number; width: number; height: number } | null {
     if (!selectedNodeId || !containerEl) return null;
@@ -2218,7 +2218,7 @@
   }
 
   /**
-   * 获取选中边的屏幕坐标（用于工具栏定位）
+   * 获取选中边的屏幕坐标(用于工具栏定位)
    * 返回边中点的位置
    */
   function getSelectedEdgeScreenPosition(): { x: number; y: number; edge: EdgeInfo } | null {
@@ -2262,7 +2262,7 @@
   }
 
   /**
-   * 在边上插入节点（常用形状快捷方式）
+   * 在边上插入节点(常用形状快捷方式)
    */
   function handleInsertNodeOnEdge(shape: ShapeType): void {
     if (!selectedEdgeId) return;
@@ -2275,7 +2275,7 @@
     }
   }
 
-  // 快速插入节点的形状选项（使用 SVG path）
+  // 快速插入节点的形状选项(使用 SVG path)
   const quickInsertShapes: { shape: ShapeType; svg: string; label: string }[] = [
     {
       shape: 'rect',
@@ -2603,7 +2603,7 @@
         class="edge-toolbar-container"
         style="left: {edgePos.x}px; top: {edgePos.y}px;"
       >
-        <!-- 上方：编辑和删除按钮 -->
+        <!-- 上方:编辑和删除按钮 -->
         <div class="edge-toolbar">
           <button onclick={handleEdgeToolbarEdit} title="编辑文本 (双击)">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
@@ -2623,7 +2623,7 @@
             </span>
           {/if}
         </div>
-        <!-- 下方：快速插入节点按钮 -->
+        <!-- 下方:快速插入节点按钮 -->
         <div class="quick-insert-bar">
           <span class="quick-insert-label">插入:</span>
           {#each quickInsertShapes as { shape, svg, label }}

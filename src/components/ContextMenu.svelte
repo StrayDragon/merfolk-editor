@@ -165,7 +165,7 @@
   function handleItemClick(item: MenuItem): void {
     if (item.disabled || item.separator) return;
 
-    // 如果有子菜单，不触发选择
+    // 如果有子菜单,不触发选择
     if (item.children && item.children.length > 0) {
       return;
     }
@@ -187,7 +187,7 @@
       let subX = rect.right;
       let subY = rect.top;
 
-      // 如果右侧空间不足，在左侧显示
+      // 如果右侧空间不足,在左侧显示
       if (subX + 180 > viewportWidth) {
         subX = rect.left - 180;
       }

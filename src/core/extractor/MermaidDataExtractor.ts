@@ -1,14 +1,14 @@
 /**
  * MermaidDataExtractor - 使用 Mermaid 内部 API 提取结构化数据
  *
- * 这个模块利用 Mermaid 的解析器来获取 flowchart 的节点和边数据，
- * 然后我们可以用自己的渲染器来渲染，从而支持交互式编辑。
+ * 这个模块利用 Mermaid 的解析器来获取 flowchart 的节点和边数据,
+ * 然后我们可以用自己的渲染器来渲染,从而支持交互式编辑.
  */
 
 import mermaid from 'mermaid';
 
 /**
- * 节点数据结构（从 Mermaid 提取）
+ * 节点数据结构(从 Mermaid 提取)
  */
 export interface ExtractedNode {
   id: string;
@@ -19,7 +19,7 @@ export interface ExtractedNode {
   domId?: string;
   parentId?: string;
   isGroup?: boolean;
-  // 位置信息（布局后填充）
+  // 位置信息(布局后填充)
   x?: number;
   y?: number;
   width?: number;
@@ -27,7 +27,7 @@ export interface ExtractedNode {
 }
 
 /**
- * 边数据结构（从 Mermaid 提取）
+ * 边数据结构(从 Mermaid 提取)
  */
 export interface ExtractedEdge {
   id: string;
@@ -38,7 +38,7 @@ export interface ExtractedEdge {
   arrowTypeEnd: string;
   thickness: string;
   pattern: string;
-  // 路径点（布局后填充）
+  // 路径点(布局后填充)
   points?: Array<{ x: number; y: number }>;
 }
 
@@ -80,7 +80,7 @@ export async function extractMermaidData(code: string): Promise<ExtractedData> {
     // 获取数据库实例
     const db = diagram.db;
 
-    // 检查是否有 getData 方法（flowchart 特有）
+    // 检查是否有 getData 方法(flowchart 特有)
     if (typeof db.getData !== 'function') {
       throw new Error('This diagram type does not support data extraction');
     }
@@ -156,8 +156,8 @@ function mapShape(mermaidShape: string): string {
 }
 
 /**
- * 简化版本：直接解析 Mermaid 代码获取基本数据
- * 不依赖内部 API，使用正则表达式解析
+ * 简化版本:直接解析 Mermaid 代码获取基本数据
+ * 不依赖内部 API,使用正则表达式解析
  */
 export function parseFlowchartBasic(code: string): ExtractedData {
   const nodes: ExtractedNode[] = [];
