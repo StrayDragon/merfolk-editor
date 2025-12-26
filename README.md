@@ -7,8 +7,12 @@
 <!-- [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/) -->
 <!-- [![Svelte](https://img.shields.io/badge/Svelte-5-ff7341)](https://svelte.dev/) -->
 
-> [!note] 其他选择
+> [!tip]
+>
+> 写这个编辑器主要是希望有一个轻量级方案, 你也可以选择继续使用官方套件!
+> 
 > Mermaid官方预览:     [Online FlowChart & Diagrams Editor - Mermaid Live Editor](https://mermaid.live/edit#pako:eNpVkU9vgzAMxb9K5NMm0QpKC00Ok1a69dJpO_Q06CEqhkQrCQpBXQd89wUq7Y9Ptt_vPR_cwUnnCAyKs76cBDeWHLaZIq4e00QY2diKN0cymz30O7Sk0gqvPdnc7TRphK5rqcr7G78ZIZJ0-xFDYoVUH8NNSib_q8KebNM9r62uj3-Vw0X35CmVb8LF_1eEQed6TgvOCj47cUMSbo7gQWlkDm53btCDCk3Fxxm60Z2BFVhhBsy1ORa8PdsMMjU4X83Vu9YVMGta5zS6LcVPTlvn3OJW8tLwXwRVjibRrbLAllMCsA4-gQU-na99GgerRexTGgUeXB2yntMwXvlxtKAhXa7CwYOv6aQ_X7u9qwWNo2DpR6EHmEurzcvtC9Mzhm-Eg3xb)
+> 
 > Mermaid官方可UI编辑: [Mermaid Chart - Create complex, visual diagrams with text.](https://www.mermaidchart.com/play?utm_source=mermaid_live_editor&utm_medium=toggle#pako:eNpVjLEOgjAURX_lpZMO_QEGEynKQqIDW-3wUottlL6mNCGG8u-CLHrXc86dmKa7YQXrXjRqizFBW908LDtKYaMbUo-DAs4PuTYJevLmnaHc1QSDpRCcf-w3v1wlEFOzagaSdf45b0h8-4s3GSrZYEgU1C9pR8pwku5ql_t_YqNZqrPssOiQa4wgMCo2fwBnHTpc)
 
 ## 简介
