@@ -11,6 +11,7 @@
     onRedo?: () => void;
     canUndo?: boolean;
     canRedo?: boolean;
+    onClearDraft?: () => void;
   }
 
   let {
@@ -25,6 +26,7 @@
     onRedo,
     canUndo = false,
     canRedo = false,
+    onClearDraft,
   }: Props = $props();
 </script>
 
@@ -118,6 +120,23 @@
       </svg>
       <span>代码</span>
     </button>
+
+    {#if onClearDraft}
+      <button
+        class="toolbar-btn danger"
+        onclick={onClearDraft}
+        title="清除本地草稿，下次加载默认"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/>
+          <path d="M14 11v6"/>
+          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+        </svg>
+        <span>清除草稿</span>
+      </button>
+    {/if}
   </div>
 </div>
 
@@ -168,6 +187,17 @@
     background: #e3f2fd;
     border-color: #2196f3;
     color: #2196f3;
+  }
+
+  .toolbar-btn.danger {
+    color: #b42318;
+    border-color: #f2c0ba;
+  }
+
+  .toolbar-btn.danger:hover:not(:disabled) {
+    background: #fdecea;
+    border-color: #f5a19a;
+    color: #8a1f11;
   }
 
   .toolbar-btn:disabled {

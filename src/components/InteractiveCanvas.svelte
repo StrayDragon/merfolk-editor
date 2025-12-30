@@ -549,16 +549,21 @@
 
       // 获取节点位置
       const transform = nodeEl.getAttribute('transform') || '';
-      const { x, y } = parseTransform(transform);
       const bbox = nodeEl.getBBox();
+      const bounds = getElementSvgBounds(nodeEl);
+      const fallback = parseTransform(transform);
+      const x = bounds ? bounds.x + bounds.width / 2 : fallback.x;
+      const y = bounds ? bounds.y + bounds.height / 2 : fallback.y;
+      const width = bounds ? bounds.width : bbox.width;
+      const height = bounds ? bounds.height : bbox.height;
 
       nodeInfoMap.set(nodeId, {
         id: nodeId,
         element: nodeEl,
         x,
         y,
-        width: bbox.width,
-        height: bbox.height,
+        width,
+        height,
         originalTransform: transform,
         initialX: x,
         initialY: y,
@@ -837,6 +842,60 @@
     return { x: 0, y: 0 };
   }
 
+  function getSvgElement(): SVGSVGElement | null {
+    return svgContainerEl?.querySelector('svg') ?? null;
+  }
+
+  function getElementSvgBounds(
+    element: SVGGraphicsElement
+  ): { x: number; y: number; width: number; height: number } | null {
+    const rect = element.getBoundingClientRect();
+    if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height)) return null;
+
+    const topLeft = screenToSvgCoords(rect.left, rect.top);
+    const topRight = screenToSvgCoords(rect.right, rect.top);
+    const bottomRight = screenToSvgCoords(rect.right, rect.bottom);
+    const bottomLeft = screenToSvgCoords(rect.left, rect.bottom);
+
+    if (!topLeft || !topRight || !bottomRight || !bottomLeft) return null;
+
+    const xs = [topLeft.x, topRight.x, bottomRight.x, bottomLeft.x];
+    const ys = [topLeft.y, topRight.y, bottomRight.y, bottomLeft.y];
+
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+    };
+  }
+
+  function svgCoordsToParent(element: SVGGraphicsElement, x: number, y: number): { x: number; y: number } {
+    const svg = getSvgElement();
+    const parent = element.parentElement;
+    if (!svg || !parent || !('getScreenCTM' in parent)) {
+      return { x, y };
+    }
+
+    const svgCTM = svg.getScreenCTM();
+    const parentCTM = (parent as SVGGraphicsElement).getScreenCTM();
+    if (!svgCTM || !parentCTM) {
+      return { x, y };
+    }
+
+    const point = svg.createSVGPoint();
+    point.x = x;
+    point.y = y;
+    const screenPoint = point.matrixTransform(svgCTM);
+    const localPoint = screenPoint.matrixTransform(parentCTM.inverse());
+    return { x: localPoint.x, y: localPoint.y };
+  }
+
   /**
    * 推断边的端点
    */
@@ -1094,7 +1153,8 @@
     // 更新节点 transform
     nodeInfo.x = x;
     nodeInfo.y = y;
-    nodeInfo.element.setAttribute('transform', `translate(${x}, ${y})`);
+    const local = svgCoordsToParent(nodeInfo.element, x, y);
+    nodeInfo.element.setAttribute('transform', `translate(${local.x}, ${local.y})`);
 
     // 更新相关的边
     updateConnectedEdges(nodeId);
@@ -1116,15 +1176,20 @@
     let maxY = -Infinity;
 
     for (const nodeInfo of nodeInfoMap.values()) {
-      // 获取节点的实际边界框
-      const bbox = nodeInfo.element.getBBox();
-      const nodeX = nodeInfo.x;
-      const nodeY = nodeInfo.y;
-
-      minX = Math.min(minX, nodeX + bbox.x);
-      minY = Math.min(minY, nodeY + bbox.y);
-      maxX = Math.max(maxX, nodeX + bbox.x + bbox.width);
-      maxY = Math.max(maxY, nodeY + bbox.y + bbox.height);
+      // 获取节点的实际边界框(SVG 坐标系)
+      const bounds = getElementSvgBounds(nodeInfo.element);
+      if (bounds) {
+        minX = Math.min(minX, bounds.x);
+        minY = Math.min(minY, bounds.y);
+        maxX = Math.max(maxX, bounds.x + bounds.width);
+        maxY = Math.max(maxY, bounds.y + bounds.height);
+      } else {
+        const bbox = nodeInfo.element.getBBox();
+        minX = Math.min(minX, nodeInfo.x + bbox.x);
+        minY = Math.min(minY, nodeInfo.y + bbox.y);
+        maxX = Math.max(maxX, nodeInfo.x + bbox.x + bbox.width);
+        maxY = Math.max(maxY, nodeInfo.y + bbox.y + bbox.height);
+      }
     }
 
     // 添加边距(确保节点不会贴着边界)
@@ -1918,10 +1983,11 @@
     const nodeInfo = nodeInfoMap.get(nodeId);
     if (!nodeInfo) return null;
 
-    // 获取节点的 bounding box(本地坐标系)
-    const bbox = nodeInfo.element.getBBox();
+    const bounds = getElementSvgBounds(nodeInfo.element);
+    if (bounds) return bounds;
 
-    // 计算全局坐标:transform 位移 + 本地坐标偏移
+    // 回退:使用节点自身的 translate
+    const bbox = nodeInfo.element.getBBox();
     return {
       x: nodeInfo.x + bbox.x,
       y: nodeInfo.y + bbox.y,

@@ -14,11 +14,13 @@
     initialCode?: string;
     /** 代码变更回调(外部使用) */
     onCodeChange?: (code: string) => void;
+    /** 清除本地草稿 */
+    onClearDraft?: () => void;
     /** 画布编辑后延迟同步的时间(ms) */
     syncDelay?: number;
   }
 
-  let { initialCode = '', onCodeChange, syncDelay = 1500 }: Props = $props();
+  let { initialCode = '', onCodeChange, onClearDraft, syncDelay = 1500 }: Props = $props();
 
   // State
   let code = $state('');
@@ -459,6 +461,7 @@
   <Toolbar
     {showCode}
     onToggleCode={toggleCodePanel}
+    onClearDraft={onClearDraft}
     onFitToView={fitToView}
     onZoomIn={zoomIn}
     onZoomOut={zoomOut}
