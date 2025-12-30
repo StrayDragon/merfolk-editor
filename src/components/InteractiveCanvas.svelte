@@ -241,6 +241,8 @@
 
       // 设置交互(传递解析后的模型信息)
       setupInteraction(mermaidCode);
+      // Ensure SVG sizing/viewport stays consistent across re-renders
+      syncSvgSizing();
 
       // 视图状态恢复逻辑
       if (savedViewState && !isFirstRender) {
@@ -1699,7 +1701,7 @@
   let initialSvgWidth = 0;
   let initialSvgHeight = 0;
 
-  function setupZoomPan(): void {
+  function syncSvgSizing(): void {
     const svg = svgContainerEl?.querySelector('svg');
     if (!svg) return;
 
@@ -1713,9 +1715,12 @@
     svg.style.width = 'auto';
     svg.style.height = 'auto';
 
-    // 初始更新 viewBox 以包含所有内容
+    // 更新 viewBox 以包含所有内容
     updateSvgViewBox();
+  }
 
+  function setupZoomPan(): void {
+    syncSvgSizing();
     // 初始居中
     centerContent();
   }
