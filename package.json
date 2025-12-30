@@ -3,28 +3,34 @@
   "version": "0.1.0",
   "description": "A visual Mermaid flowchart editor with bidirectional sync",
   "type": "module",
-  "main": "dist/lib/index.es.js",
+  "main": "cjs/index.cjs",
   "module": "dist/lib/index.es.js",
   "types": "dist/lib/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/lib/index.d.ts",
-      "import": "./dist/lib/index.es.js"
+      "import": "./dist/lib/index.es.js",
+      "require": "./cjs/index.cjs"
     },
     "./style": "./dist/merfolk-editor.css"
   },
   "files": [
+    "cjs",
     "dist",
     "README.md",
     "LICENSE"
   ],
   "peerDependencies": {
     "mermaid": ">=10.0.0",
+    "svelte": ">=5.0.0",
     "d3": ">=7.0.0",
     "@dagrejs/dagre": ">=1.0.0"
   },
   "peerDependenciesMeta": {
     "mermaid": {
+      "optional": false
+    },
+    "svelte": {
       "optional": false
     },
     "d3": {
@@ -36,8 +42,9 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && pnpm run build:lib",
+    "build": "vite build && vite build --config vite.config.lib.ts",
     "build:lib": "vite build --config vite.config.lib.ts",
+    "prepare": "vite build --config vite.config.lib.ts",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",

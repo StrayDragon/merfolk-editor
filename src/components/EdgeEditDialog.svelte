@@ -89,10 +89,16 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="dialog-backdrop" onclick={handleBackdropClick} role="dialog" aria-modal="true">
-  <div class="dialog">
+<div class="dialog-backdrop" onclick={handleBackdropClick} role="presentation">
+  <div
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="edge-edit-dialog-title"
+    tabindex="-1"
+  >
     <div class="dialog-header">
-      <h3>编辑连接</h3>
+      <h3 id="edge-edit-dialog-title">编辑连接</h3>
       <button class="close-btn" onclick={onCancel} aria-label="关闭">✕</button>
     </div>
 
@@ -396,4 +402,3 @@
     background: #1565c0;
   }
 </style>
-

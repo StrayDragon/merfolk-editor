@@ -487,7 +487,7 @@ export class MermaidParser {
 
     // Process each part
     let prevNodeId: string | null = null;
-    let pendingEdge: { operator: string; text?: string } | null = null;
+    let pendingEdge: { operator: string; text?: string; edgeId?: string } | null = null;
 
     for (const part of parts) {
       if (part.type === 'node') {
@@ -531,8 +531,6 @@ export class MermaidParser {
 
     // Split into left and right parts
     const leftPart = line.substring(0, edgeIndex).trim();
-    const rightPart = line.substring(edgeIndex + edgeOp.length).trim();
-
     // Also capture any text on the edge (|text| or == text ==> format)
     // For simplicity, we'll pass through the full edge operator
     const fullEdgeMatch = line.substring(edgeIndex).match(/^(~~~|<==?>|<==>|==?>|===?|<-\.->|-\.->|-\.-?|<-->|-->|o--o|x--x|--o|--x|---?)(\|[^|]+\|)?/);

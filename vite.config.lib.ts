@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [
     sveltePlugin(),
     dts({
-      include: ['src/lib/**/*.ts', 'src/core/**/*.ts'],
+      include: ['src/lib/**/*.ts', 'src/core/**/*.ts', 'src/**/*.d.ts'],
       exclude: ['**/*.test.ts', '**/*.spec.ts'],
       outDir: 'dist/lib',
       rollupTypes: true,
@@ -22,8 +22,10 @@ export default defineConfig({
     lib: {
       entry: resolve(__dirname, 'src/lib/index.ts'),
       name: 'MerfolkEditor',
-      fileName: (format) => `lib/index.${format}.js`,
-      formats: ['es']
+      fileName: (format) => (
+        format === 'cjs' ? 'lib/index.cjs' : 'lib/index.es.js'
+      ),
+      formats: ['es', 'cjs']
     },
     rollupOptions: {
       external: [
@@ -35,6 +37,7 @@ export default defineConfig({
         '@dagrejs/dagre'
       ],
       output: {
+        assetFileNames: 'merfolk-editor[extname]',
         globals: {
           'svelte': 'Svelte',
           'mermaid': 'mermaid',
