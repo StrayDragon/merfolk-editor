@@ -36,10 +36,10 @@ const SHAPE_PATTERNS: Array<{
   { start: '[\\', end: '\\]', shape: 'inv_trapezoid' },
   { start: '[/', end: '\\]', shape: 'lean_right' },
   { start: '[\\', end: '/]', shape: 'lean_left' },
-  { start: '>', end: ']', shape: 'odd' },
   { start: '{', end: '}', shape: 'diamond' },
   { start: '(', end: ')', shape: 'rounded' },
   { start: '[', end: ']', shape: 'rect' },
+  { start: '>', end: ']', shape: 'odd' },
 ];
 
 /**

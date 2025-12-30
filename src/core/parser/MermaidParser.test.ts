@@ -105,6 +105,20 @@ describe('MermaidParser', () => {
       expect(model.getNode('C')?.parentId).toBeUndefined();
     });
 
+    it('should parse HTML labels inside subgraphs', () => {
+      const code = `flowchart TB
+        subgraph Group
+          N1["One<br/>Two"]
+        end`;
+
+      const model = parser.parse(code);
+
+      const node = model.getNode('N1');
+      expect(node?.text).toBe('One<br/>Two');
+      expect(node?.shape).toBe('rect');
+      expect(node?.parentId).toBe('Group');
+    });
+
     it('should parse nested subgraphs with parent references', () => {
       const code = `flowchart TB
         subgraph outer
