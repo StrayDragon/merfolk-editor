@@ -146,6 +146,12 @@ describe('Mermaid Flowchart 兼容性测试', () => {
       expect(model.edges[0].arrowEnd).toBe('arrow');
     });
 
+    it('3.4.1 带引号文本的边 -- "text" -->', () => {
+      const model = parser.parse('flowchart LR\n  A-- "text label" -->B');
+      expect(model.edges[0].text).toBe('text label');
+      expect(model.edges[0].arrowEnd).toBe('arrow');
+    });
+
     it('3.5 虚线边 -.->', () => {
       const model = parser.parse('flowchart LR\n  A-.->B');
       expect(model.edges[0].stroke).toBe('dotted');
@@ -316,6 +322,15 @@ describe('Mermaid Flowchart 兼容性测试', () => {
       expect(model.subGraphs[0].title).toBe('One Title');
     });
 
+    it('6.2.1 带引号标题的子图', () => {
+      const model = parser.parse(`flowchart TB
+        subgraph "Subgraph Title"
+          a1-->a2
+        end`);
+      expect(model.subGraphs[0].title).toBe('Subgraph Title');
+      expect(model.subGraphs[0].id).toBe('subgraph_title');
+    });
+
     it('6.3 子图内方向', () => {
       const model = parser.parse(`flowchart LR
         subgraph TOP
@@ -456,4 +471,3 @@ describe('Mermaid Flowchart 兼容性测试', () => {
     });
   });
 });
-

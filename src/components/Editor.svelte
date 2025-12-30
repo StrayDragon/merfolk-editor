@@ -42,6 +42,8 @@
   // 画布编辑模式状态
   let isCanvasEditing = $state(false);
   let syncTimer: ReturnType<typeof setTimeout> | null = null;
+  let interactionError = $state<string | null>(null);
+  let interactionErrorTimer: ReturnType<typeof setTimeout> | null = null;
 
   // 对话框状态
   let editDialogState = $state<{
@@ -104,6 +106,9 @@
     syncEngine.destroy();
     if (syncTimer) {
       clearTimeout(syncTimer);
+    }
+    if (interactionErrorTimer) {
+      clearTimeout(interactionErrorTimer);
     }
     document.removeEventListener('keydown', handleGlobalKeyDown);
   });
@@ -371,9 +376,13 @@
    */
   function handleDragEdgeCreate(sourceId: string, targetId: string): void {
     try {
+      if (!ensureEdgeEndpoints(sourceId, targetId)) {
+        return;
+      }
       syncEngine.addEdge(sourceId, targetId, undefined, 'normal', 'arrow');
     } catch (error) {
       console.error('[Editor] Failed to create edge via drag:', error);
+      showInteractionError('创建连线失败，请检查 Mermaid 语法或节点 ID');
     }
   }
 
@@ -388,6 +397,11 @@
     arrowType: ArrowType
   ): void {
     try {
+      const canCreateEdge = targetId === '__new__' || ensureEdgeEndpoints(sourceId, targetId);
+      if (!canCreateEdge) {
+        edgeDialogState = null;
+        return;
+      }
       // 特殊情况:创建新节点并连接
       if (targetId === '__new__') {
         // 生成新节点 ID
@@ -401,6 +415,7 @@
       }
     } catch (error) {
       console.error('[Editor] Failed to add edge:', error);
+      showInteractionError('创建连线失败，请检查 Mermaid 语法或节点 ID');
     }
     edgeDialogState = null;
   }
@@ -425,6 +440,39 @@
    */
   function handleAddEdgeCancel(): void {
     edgeDialogState = null;
+  }
+
+  function showInteractionError(message: string): void {
+    interactionError = message;
+    if (interactionErrorTimer) {
+      clearTimeout(interactionErrorTimer);
+    }
+    interactionErrorTimer = setTimeout(() => {
+      interactionError = null;
+      interactionErrorTimer = null;
+    }, 2500);
+  }
+
+  function ensureEdgeEndpoints(sourceId: string, targetId: string): boolean {
+    const model = syncEngine.getModel();
+    if (model.getNode(sourceId) && model.getNode(targetId)) {
+      return true;
+    }
+
+    try {
+      syncEngine.updateFromCode(code);
+    } catch (error) {
+      showInteractionError('当前 Mermaid 语法无法解析，已取消连线操作');
+      return false;
+    }
+
+    const refreshedModel = syncEngine.getModel();
+    if (!refreshedModel.getNode(sourceId) || !refreshedModel.getNode(targetId)) {
+      showInteractionError('无法创建连接：节点未在可编辑模型中');
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -527,6 +575,12 @@
       </div>
     {/if}
   </div>
+
+  {#if interactionError}
+    <div class="interaction-toast" role="status">
+      {interactionError}
+    </div>
+  {/if}
 </div>
 
 <!-- 节点编辑对话框 -->
@@ -566,6 +620,7 @@
 
 <style>
   .editor {
+    position: relative;
     display: flex;
     flex-direction: column;
     width: 100%;
@@ -677,5 +732,20 @@
   @keyframes pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.7; transform: scale(1.05); }
+  }
+
+  .interaction-toast {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    max-width: 320px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(35, 35, 35, 0.92);
+    color: #ffffff;
+    font-size: 12px;
+    line-height: 1.4;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    z-index: 20;
   }
 </style>

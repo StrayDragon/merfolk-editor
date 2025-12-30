@@ -215,11 +215,19 @@ export class MermaidSerializer {
 
   /**
    * Format node text for Mermaid syntax
-   * Uses backtick syntax for special characters (Mermaid's markdown string)
+   * Uses quoted text for HTML/Unicode and markdown strings only for markdown content
    */
   private formatNodeText(text: string, shape: ShapeType): string {
+    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const hasHtmlLike = /<[^>]+>/.test(normalized);
+    if (hasHtmlLike) {
+      return `"${this.escapeQuotedText(normalized)}"`;
+    }
+
+    const hasMarkdown = this.isMarkdownText(normalized);
+
     // Characters that might conflict with Mermaid syntax
-    const specialChars = /[\[\]{}()<>|\\\/\n\r"#]/;
+    const specialChars = /[\[\]{}()<>|\\\/\n"#]/;
 
     // Get the shape delimiters to check for conflicts
     const [start, end] = isLegacyShape(shape)
@@ -227,21 +235,46 @@ export class MermaidSerializer {
       : LEGACY_SHAPE_SYNTAX.rect;
 
     // Check if text contains any delimiter characters or special chars
-    const needsEscaping = specialChars.test(text) ||
-                          text.includes(start) ||
-                          text.includes(end) ||
-                          text.includes('-->') ||
-                          text.includes('---') ||
-                          text.includes('`');
+    const needsQuotes = specialChars.test(normalized) ||
+      normalized.includes(start) ||
+      normalized.includes(end) ||
+      normalized.includes('-->') ||
+      normalized.includes('---') ||
+      normalized.includes('`') ||
+      /[^\x20-\x7E]/.test(normalized);
 
-    if (needsEscaping) {
-      // Use Mermaid's markdown string syntax with backticks
-      // Escape any backticks in the text
-      const escaped = text.replace(/`/g, '#96;');
+    if (hasMarkdown) {
+      const escaped = this.escapeMarkdownText(normalized);
       return `"\`${escaped}\`"`;
     }
 
-    return text;
+    if (needsQuotes) {
+      return `"${this.escapeQuotedText(normalized)}"`;
+    }
+
+    return normalized;
+  }
+
+  private isMarkdownText(text: string): boolean {
+    return /(\*\*|__|~~|\n)/.test(text);
+  }
+
+  private escapeQuotedText(text: string): string {
+    const normalized = this.normalizeQuoteEntities(text);
+    return normalized.replace(/"/g, '#quot;');
+  }
+
+  private escapeMarkdownText(text: string): string {
+    const normalized = this.normalizeQuoteEntities(text);
+    return normalized
+      .replace(/`/g, '#96;')
+      .replace(/"/g, '#quot;');
+  }
+
+  private normalizeQuoteEntities(text: string): string {
+    return text
+      .replace(/#quot;/g, '"')
+      .replace(/&quot;/g, '"');
   }
 
   /**
@@ -310,15 +343,26 @@ export class MermaidSerializer {
    * Format subgraph title for Mermaid syntax
    */
   private formatSubgraphTitle(title: string): string {
-    const specialChars = /[\[\]{}()<>|\\\/\n\r"#`]/;
+    const normalized = title.replace(/\r?\n/g, ' ').trim();
+    const escaped = normalized
+      .replace(/&/g, '#amp;')
+      .replace(/"/g, '#quot;')
+      .replace(/\[/g, '#lsqb;')
+      .replace(/\]/g, '#rsqb;')
+      .replace(/`/g, '#96;')
+      .replace(/\|/g, '#124;')
+      .replace(/</g, '#lt;')
+      .replace(/>/g, '#gt;');
 
-    if (specialChars.test(title)) {
-      // Use Mermaid's markdown string syntax with backticks
-      const escaped = title.replace(/`/g, '#96;');
-      return `"\`${escaped}\`"`;
+    const needsQuotes =
+      /[()]/.test(normalized) ||
+      /[^\x20-\x7E]/.test(normalized);
+
+    if (!needsQuotes && escaped === normalized) {
+      return escaped;
     }
 
-    return title;
+    return `"${escaped}"`;
   }
 
   /**

@@ -318,23 +318,50 @@ export class MermaidParser {
    * Parse subgraph start: subgraph id [title]
    */
   private parseSubGraphStart(line: string, ctx: ParseContext): void {
-    const match = line.match(/^subgraph\s+(\S+)(?:\s*\[(.+?)\])?/);
-    if (match) {
-      const id = match[1];
-      const title = match[2] || id;
-      const parentId =
-        ctx.subGraphStack.length > 0
-          ? ctx.subGraphStack[ctx.subGraphStack.length - 1]
-          : undefined;
-      ctx.subGraphs.push({
-        id,
-        title,
-        nodeIds: [],
-        parentId,
-        // Don't inherit direction - subgraph can have its own direction
-      });
-      ctx.subGraphStack.push(id);
+    const match = line.match(/^subgraph\s+(.+)$/);
+    if (!match) return;
+
+    const rest = match[1].trim();
+    let id: string;
+    let title: string;
+
+    if (/^["'`]/.test(rest)) {
+      title = this.unquoteText(rest);
+      id = this.generateSubGraphId(title, ctx);
+    } else {
+      const idMatch = rest.match(/^([^\s\[]+)(?:\s*\[(.+)\])?$/);
+      if (!idMatch) return;
+      id = idMatch[1];
+      const rawTitle = idMatch[2];
+      title = rawTitle ? this.unquoteText(rawTitle.trim()) : id;
     }
+
+    const parentId =
+      ctx.subGraphStack.length > 0
+        ? ctx.subGraphStack[ctx.subGraphStack.length - 1]
+        : undefined;
+    ctx.subGraphs.push({
+      id,
+      title,
+      nodeIds: [],
+      parentId,
+      // Don't inherit direction - subgraph can have its own direction
+    });
+    ctx.subGraphStack.push(id);
+  }
+
+  private generateSubGraphId(title: string, ctx: ParseContext): string {
+    const base = title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'subgraph';
+    let id = base;
+    let counter = 1;
+    while (ctx.subGraphs.some((s) => s.id === id) || ctx.nodes.has(id)) {
+      id = `${base}_${counter}`;
+      counter += 1;
+    }
+    return id;
   }
 
   /**
@@ -605,7 +632,7 @@ export class MermaidParser {
         // Parse: NodeA -- text --> NodeB
         const beforeMatch = line.substring(0, match.index).trim();
         const afterMatch = line.substring(match.index + match[0].length).trim();
-        const text = match[1].trim();
+        const text = this.unquoteText(match[1].trim());
 
         // Determine the edge type from the original match
         const fullMatch = match[0];

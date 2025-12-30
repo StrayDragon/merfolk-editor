@@ -159,6 +159,33 @@ describe('SyncEngine', () => {
       const edges = syncEngine.getModel().edges;
       expect(edges[0].stroke).toBe('dotted');
     });
+
+    it('should keep subgraph titles and HTML labels intact when adding edges inside subgraphs', () => {
+      const code = `flowchart TB
+        subgraph Users["👤 用户(需求方)"]
+          User["提出需求"]
+        end
+
+        subgraph Channels["📡 通道层"]
+          direction LR
+          Future["其他 Channel<br/>(计划中)"]
+        end
+
+        subgraph LLM["🔮 LLM 提供层"]
+          direction LR
+          Claude["Claude API"]
+          OpenAI["OpenAI API"]
+        end`;
+
+      syncEngine.updateFromCode(code);
+      syncEngine.addEdge('Claude', 'OpenAI');
+
+      const serialized = syncEngine.getCode();
+
+      expect(serialized).toContain('subgraph Users["👤 用户(需求方)"]');
+      expect(serialized).toContain('Future["其他 Channel<br/>(计划中)"]');
+      expect(serialized).toContain('Claude --> OpenAI');
+    });
   });
 
   describe('undo/redo', () => {

@@ -360,6 +360,28 @@ describe('MermaidSerializer', () => {
       const edgeWithLabel = reparsed.edges.find(e => e.text === 'condition');
       expect(edgeWithLabel).toBeDefined();
     });
+
+    it('should roundtrip subgraph titles with quotes and unicode', () => {
+      const originalCode = `flowchart TB
+    subgraph Users["👤 用户(需求方)"]
+      A[Node A]
+    end
+
+    subgraph Channels["📡 通道层"]
+      direction LR
+      B[Node B]
+      C[Node C]
+    end
+
+    Users --> Channels
+    B --> C`;
+
+      const model = parser.parse(originalCode);
+      const serialized = serializer.serialize(model);
+
+      expect(serialized).toContain('subgraph Users["👤 用户(需求方)"]');
+      expect(() => parser.parse(serialized)).not.toThrow();
+    });
   });
 
   describe('node text simplification', () => {
@@ -384,33 +406,67 @@ describe('MermaidSerializer', () => {
   });
 
   describe('special character escaping', () => {
-    it('should use backtick syntax for node text with parentheses', () => {
+    it('should use quoted text for node text with parentheses', () => {
       const model = new FlowchartModel();
       model.addNode({ id: 'A', text: 'Text (with parens)', shape: 'rect' });
 
       const output = serializer.serialize(model);
 
-      // Mermaid markdown string syntax: "`...`"
-      expect(output).toContain('A["`Text (with parens)`"]');
+      expect(output).toContain('A["Text (with parens)"]');
     });
 
-    it('should use backtick syntax for node text with brackets', () => {
+    it('should use quoted text for node text with brackets', () => {
       const model = new FlowchartModel();
       model.addNode({ id: 'A', text: 'Text [with brackets]', shape: 'rect' });
 
       const output = serializer.serialize(model);
 
-      expect(output).toContain('A["`Text [with brackets]`"]');
+      expect(output).toContain('A["Text [with brackets]"]');
     });
 
-    it('should use backtick syntax for node text with double quotes', () => {
+    it('should use markdown string for markdown formatting', () => {
+      const model = new FlowchartModel();
+      model.addNode({ id: 'A', text: 'This **is** _Markdown_', shape: 'rect' });
+
+      const output = serializer.serialize(model);
+
+      expect(output).toContain('A["`This **is** _Markdown_`"]');
+    });
+
+    it('should quote unicode text', () => {
+      const model = new FlowchartModel();
+      model.addNode({ id: 'A', text: '中文内容', shape: 'rect' });
+
+      const output = serializer.serialize(model);
+
+      expect(output).toContain('A["中文内容"]');
+    });
+
+    it('should keep HTML line breaks in quoted text', () => {
+      const model = new FlowchartModel();
+      model.addNode({ id: 'A', text: 'Line1<br/>Line2', shape: 'rect' });
+
+      const output = serializer.serialize(model);
+
+      expect(output).toContain('A["Line1<br/>Line2"]');
+    });
+
+    it('should escape double quotes in node text', () => {
       const model = new FlowchartModel();
       model.addNode({ id: 'A', text: 'Text "quoted"', shape: 'rect' });
 
       const output = serializer.serialize(model);
 
-      // Double quotes are allowed inside backtick strings
-      expect(output).toContain('A["`Text "quoted"`"]');
+      expect(output).toContain('A["Text #quot;quoted#quot;"]');
+    });
+
+    it('should normalize mixed quote encodings in node text', () => {
+      const model = new FlowchartModel();
+      model.addNode({ id: 'A', text: 'Text #quot;quoted"', shape: 'rect' });
+
+      const output = serializer.serialize(model);
+
+      expect(output).toContain('A["Text #quot;quoted#quot;"]');
     });
 
     it('should escape pipes in edge labels', () => {
@@ -438,18 +494,16 @@ describe('MermaidSerializer', () => {
 
       const output = serializer.serialize(model);
 
-      // Text with curly braces should use backtick syntax
-      expect(output).toContain('A{"`Is {valid}?`"}');
+      expect(output).toContain('A{"Is {valid}?"}');
     });
 
-    it('should escape backticks in node text', () => {
+    it('should keep backticks in quoted text', () => {
       const model = new FlowchartModel();
       model.addNode({ id: 'A', text: 'Code `example`', shape: 'rect' });
 
       const output = serializer.serialize(model);
 
-      // Backticks should be escaped using entity code
-      expect(output).toContain('A["`Code #96;example#96;`"]');
+      expect(output).toContain('A["Code `example`"]');
     });
   });
 });
