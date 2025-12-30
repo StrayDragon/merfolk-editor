@@ -84,6 +84,84 @@ describe('MermaidSerializer', () => {
       expect(output).toContain('A -->|Yes| B');
     });
 
+    it('should serialize user-defined edge IDs', () => {
+      const model = new FlowchartModel();
+      model.addNode({ id: 'A', text: 'A', shape: 'rect' });
+      model.addNode({ id: 'B', text: 'B', shape: 'rect' });
+      model.addEdge({
+        id: 'e1',
+        source: 'A',
+        target: 'B',
+        stroke: 'normal',
+        arrowStart: 'none',
+        arrowEnd: 'arrow',
+        isUserDefinedId: true
+      });
+
+      const output = serializer.serialize(model);
+
+      expect(output).toContain('A e1@--> B');
+    });
+
+    it('should serialize edge length for normal arrows', () => {
+      const model = new FlowchartModel();
+      model.addNode({ id: 'A', text: 'A', shape: 'rect' });
+      model.addNode({ id: 'B', text: 'B', shape: 'rect' });
+      model.addEdge({
+        id: 'e1',
+        source: 'A',
+        target: 'B',
+        stroke: 'normal',
+        arrowStart: 'none',
+        arrowEnd: 'arrow',
+        length: 3
+      });
+
+      const output = serializer.serialize(model);
+
+      expect(output).toContain('A ----> B');
+    });
+
+    it('should serialize linkStyle for edge styles', () => {
+      const model = new FlowchartModel();
+      model.addNode({ id: 'A', text: 'A', shape: 'rect' });
+      model.addNode({ id: 'B', text: 'B', shape: 'rect' });
+      model.addEdge({
+        id: 'e1',
+        source: 'A',
+        target: 'B',
+        stroke: 'normal',
+        arrowStart: 'none',
+        arrowEnd: 'arrow',
+        style: { stroke: '#f00', strokeWidth: 4 }
+      });
+
+      const output = serializer.serialize(model);
+
+      expect(output).toContain('linkStyle 0 stroke:#f00,stroke-width:4px');
+    });
+
+    it('should serialize edge animation properties', () => {
+      const model = new FlowchartModel();
+      model.addNode({ id: 'A', text: 'A', shape: 'rect' });
+      model.addNode({ id: 'B', text: 'B', shape: 'rect' });
+      model.addEdge({
+        id: 'e1',
+        source: 'A',
+        target: 'B',
+        stroke: 'normal',
+        arrowStart: 'none',
+        arrowEnd: 'arrow',
+        isUserDefinedId: true,
+        animate: true
+      });
+
+      const output = serializer.serialize(model);
+
+      expect(output).toContain('A e1@--> B');
+      expect(output).toContain('e1@{ animate: true }');
+    });
+
     it('should serialize bidirectional edges', () => {
       const model = new FlowchartModel();
       model.addNode({ id: 'A', text: 'A', shape: 'rect' });
@@ -113,6 +191,23 @@ describe('MermaidSerializer', () => {
 
       expect(output).toContain('subgraph sg1[Group 1]');
       expect(output).toContain('end');
+    });
+
+    it('should serialize nested subgraphs', () => {
+      const model = new FlowchartModel();
+      model.addSubGraph({ id: 'outer', title: 'Outer', nodeIds: ['A'] });
+      model.addSubGraph({ id: 'inner', title: 'Inner', nodeIds: ['B'], parentId: 'outer' });
+      model.addNode({ id: 'A', text: 'A', shape: 'rect', parentId: 'outer' });
+      model.addNode({ id: 'B', text: 'B', shape: 'rect', parentId: 'inner' });
+
+      const output = serializer.serialize(model);
+      const lines = output.split('\n');
+      const outerIndex = lines.findIndex((line) => line.includes('subgraph outer'));
+      const innerIndex = lines.findIndex((line) => line.includes('subgraph inner'));
+
+      expect(outerIndex).toBeGreaterThan(-1);
+      expect(innerIndex).toBeGreaterThan(outerIndex);
+      expect(lines[innerIndex].startsWith('        subgraph inner')).toBe(true);
     });
 
     it('should serialize class definitions', () => {

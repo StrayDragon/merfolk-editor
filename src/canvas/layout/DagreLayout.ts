@@ -90,6 +90,13 @@ export class DagreLayout {
       }
     }
 
+    // Set parent relationships for nested subgraphs
+    for (const subGraph of model.subGraphs) {
+      if (subGraph.parentId && g.hasNode(subGraph.parentId)) {
+        g.setParent(subGraph.id, subGraph.parentId);
+      }
+    }
+
     // Add edges - use edge.id as the name to support multiple edges between same nodes
     for (const edge of model.edges) {
       g.setEdge(edge.source, edge.target, {

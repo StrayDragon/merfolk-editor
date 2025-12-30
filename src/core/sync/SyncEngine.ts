@@ -100,11 +100,7 @@ export class SyncEngine {
    */
   updateNodePosition(nodeId: string, x: number, y: number): void {
     this.nodePositions.set(nodeId, { x, y });
-
-    const node = this.model.getNode(nodeId);
-    if (node) {
-      node.position = { x, y };
-    }
+    this.model.updateNode(nodeId, { position: { x, y } });
   }
 
   /**
@@ -143,37 +139,36 @@ export class SyncEngine {
    * 更新节点文本
    */
   updateNodeText(nodeId: string, text: string): void {
-    const node = this.model.getNode(nodeId);
-    if (node) {
-      this.saveToHistory();
-      node.text = text;
-      this.debouncedSerialize();
+    if (!this.model.getNode(nodeId)) {
+      return;
     }
+    this.saveToHistory();
+    this.model.updateNode(nodeId, { text });
+    this.debouncedSerialize();
   }
 
   /**
    * 更新节点形状
    */
   updateNodeShape(nodeId: string, shape: ShapeType): void {
-    const node = this.model.getNode(nodeId);
-    if (node) {
-      this.saveToHistory();
-      node.shape = shape;
-      this.debouncedSerialize();
+    if (!this.model.getNode(nodeId)) {
+      return;
     }
+    this.saveToHistory();
+    this.model.updateNode(nodeId, { shape });
+    this.debouncedSerialize();
   }
 
   /**
    * 更新节点(文本和形状)
    */
   updateNode(nodeId: string, text: string, shape: ShapeType): void {
-    const node = this.model.getNode(nodeId);
-    if (node) {
-      this.saveToHistory();
-      node.text = text;
-      node.shape = shape;
-      this.debouncedSerialize();
+    if (!this.model.getNode(nodeId)) {
+      return;
     }
+    this.saveToHistory();
+    this.model.updateNode(nodeId, { text, shape });
+    this.debouncedSerialize();
   }
 
   /**
@@ -233,17 +228,29 @@ export class SyncEngine {
       shape,
     });
 
+    const baseEdgeData = {
+      stroke: originalEdge.stroke,
+      arrowStart: originalEdge.arrowStart,
+      arrowEnd: originalEdge.arrowEnd,
+      style: originalEdge.style ? { ...originalEdge.style } : undefined,
+      cssClasses: originalEdge.cssClasses.length > 0 ? [...originalEdge.cssClasses] : undefined,
+      animate: originalEdge.animate,
+      animation: originalEdge.animation,
+      length: originalEdge.length,
+    };
+
     // 创建两条新边:source -> newNode, newNode -> target
-    // 保留原边的 stroke 类型
+    // 保留原边的样式和属性
     this.model.addEdge({
       source: sourceId,
       target: newNodeId,
-      stroke: originalEdge.stroke,
+      text: originalEdge.text,
+      ...baseEdgeData,
     });
     this.model.addEdge({
       source: newNodeId,
       target: targetId,
-      stroke: originalEdge.stroke,
+      ...baseEdgeData,
     });
 
     // 删除原边
@@ -270,12 +277,53 @@ export class SyncEngine {
    * 更新边文本
    */
   updateEdgeText(edgeId: string, text: string): void {
-    this.saveToHistory();
-    const edge = this.model.getEdge(edgeId);
-    if (edge) {
-      edge.text = text || undefined;
-      this.debouncedSerialize();
+    this.updateEdge(edgeId, { text });
+  }
+
+  /**
+   * 更新边属性
+   */
+  updateEdge(
+    edgeId: string,
+    updates: {
+      text?: string;
+      stroke?: StrokeType;
+      arrowStart?: ArrowType;
+      arrowEnd?: ArrowType;
     }
+  ): void {
+    if (!this.model.getEdge(edgeId)) {
+      return;
+    }
+
+    this.saveToHistory();
+
+    const edgeUpdates: {
+      text?: string;
+      stroke?: StrokeType;
+      arrowStart?: ArrowType;
+      arrowEnd?: ArrowType;
+    } = {};
+
+    if ('text' in updates) {
+      if (typeof updates.text === 'string') {
+        edgeUpdates.text = updates.text === '' ? undefined : updates.text;
+      } else {
+        edgeUpdates.text = undefined;
+      }
+    }
+    if (updates.stroke !== undefined) {
+      edgeUpdates.stroke = updates.stroke;
+    }
+    if (updates.arrowStart !== undefined) {
+      edgeUpdates.arrowStart = updates.arrowStart;
+    }
+    if (updates.arrowEnd !== undefined) {
+      edgeUpdates.arrowEnd = updates.arrowEnd;
+    }
+
+    this.model.updateEdge(edgeId, edgeUpdates);
+    this.debouncedSerialize();
   }
 
   /**
@@ -283,6 +331,13 @@ export class SyncEngine {
    */
   getNodesForEdgeDialog(): { id: string; text: string }[] {
     return this.model.nodes.map(n => ({ id: n.id, text: n.text }));
+  }
+
+  /**
+   * 通过 ID 获取边
+   */
+  getEdgeById(edgeId: string): FlowEdge | undefined {
+    return this.model.getEdge(edgeId);
   }
 
   /**

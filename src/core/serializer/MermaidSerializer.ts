@@ -105,6 +105,20 @@ export class MermaidSerializer {
       }
     }
 
+    // Serialize edge properties (animation, etc.)
+    const edgeProps = this.serializeEdgeProperties(model);
+    if (edgeProps.length > 0) {
+      lines.push('');
+      lines.push(...edgeProps.map((l) => this.options.indent + l));
+    }
+
+    // Serialize link styles
+    const linkStyles = this.serializeLinkStyles(model);
+    if (linkStyles.length > 0) {
+      lines.push('');
+      lines.push(...linkStyles.map((l) => this.options.indent + l));
+    }
+
     // Serialize class definitions
     if (this.options.includeClassDefs) {
       const classDefs = this.serializeClassDefs(model);
@@ -242,15 +256,14 @@ export class MermaidSerializer {
     serialized: Set<string>
   ): void {
     // Find subgraphs that belong to this parent level
-    for (const subGraph of subGraphs) {
+    const levelSubGraphs = subGraphs.filter(
+      (subGraph) =>
+        !serialized.has(subGraph.id) &&
+        (subGraph.parentId ?? undefined) === parentId
+    );
+
+    for (const subGraph of levelSubGraphs) {
       if (serialized.has(subGraph.id)) continue;
-
-      // Check if this subgraph's parent matches the current level
-      // For now, we use a simple approach: subgraphs without a parent are root level
-      const isRootLevel = parentId === undefined;
-      const belongsToParent = isRootLevel; // TODO: enhance with actual parent tracking
-
-      if (!belongsToParent && parentId !== undefined) continue;
 
       serialized.add(subGraph.id);
       lines.push('');
@@ -268,19 +281,14 @@ export class MermaidSerializer {
       }
 
       // Recursively serialize nested subgraphs
-      const nestedSubGraphs = subGraphs.filter((s) =>
-        s.nodeIds?.some((nodeId) => subGraph.nodeIds?.includes(nodeId)) && !serialized.has(s.id)
+      this.serializeSubGraphsRecursive(
+        subGraphs,
+        subGraphNodes,
+        subGraph.id,
+        lines,
+        currentIndent + this.options.indent,
+        serialized
       );
-      if (nestedSubGraphs.length > 0) {
-        this.serializeSubGraphsRecursive(
-          nestedSubGraphs,
-          subGraphNodes,
-          subGraph.id,
-          lines,
-          currentIndent + this.options.indent,
-          serialized
-        );
-      }
 
       lines.push(currentIndent + 'end');
     }
@@ -318,7 +326,18 @@ export class MermaidSerializer {
    */
   private serializeEdge(edge: FlowEdge): string {
     const operator = this.getEdgeOperator(edge);
-    return `${edge.source} ${operator} ${edge.target}`;
+    const edgeIdPrefix = this.getEdgeIdPrefix(edge);
+    return `${edge.source} ${edgeIdPrefix}${operator} ${edge.target}`;
+  }
+
+  /**
+   * Determine whether to include edge ID in the edge statement
+   */
+  private getEdgeIdPrefix(edge: FlowEdge): string {
+    if (edge.isUserDefinedId || edge.animate || edge.animation) {
+      return `${edge.id}@`;
+    }
+    return '';
   }
 
   /**
@@ -327,50 +346,65 @@ export class MermaidSerializer {
    */
   private getEdgeOperator(edge: FlowEdge): string {
     const { stroke, arrowStart, arrowEnd, text } = edge;
+    const defaultLength =
+      edge.length ??
+      ((stroke === 'normal' && arrowStart === 'none' && arrowEnd === 'none') ||
+      (stroke === 'thick' && arrowStart === 'none' && arrowEnd === 'none')
+        ? 2
+        : 1);
+    const length = Math.max(1, defaultLength);
 
     // Build base operator based on stroke type and arrows
     let baseOp = '';
 
-    if (stroke === 'dotted') {
-      // Dotted lines
+    if (stroke === 'invisible') {
+      baseOp = '~~~';
+    } else if (stroke === 'dotted') {
+      const dots = '.'.repeat(length);
+      const body = `-${dots}-`;
       if (arrowStart === 'arrow' && arrowEnd === 'arrow') {
-        baseOp = '<-.->';
+        baseOp = `<${body}>`;
       } else if (arrowEnd === 'arrow') {
-        baseOp = '-.->';
+        baseOp = `${body}>`;
       } else if (arrowStart === 'arrow') {
-        baseOp = '<-.-';
+        baseOp = `<${body}`;
       } else {
-        baseOp = '-.-';
+        baseOp = body;
       }
     } else if (stroke === 'thick') {
-      // Thick lines
+      const equals = '='.repeat(length + 1);
       if (arrowStart === 'arrow' && arrowEnd === 'arrow') {
-        baseOp = '<==>';
+        baseOp = `<${equals}>`;
       } else if (arrowEnd === 'arrow') {
-        baseOp = '==>';
+        baseOp = `${equals}>`;
       } else if (arrowStart === 'arrow') {
-        baseOp = '<==';
+        baseOp = `<${equals}`;
       } else {
-        baseOp = '===';
+        baseOp = equals;
       }
     } else {
-      // Normal lines
-      if (arrowStart === 'arrow' && arrowEnd === 'arrow') {
-        baseOp = '<-->';
-      } else if (arrowStart === 'arrow') {
-        baseOp = '<--';
-      } else if (arrowEnd === 'arrow') {
-        baseOp = '-->';
-      } else if (arrowStart === 'circle' && arrowEnd === 'circle') {
-        baseOp = 'o--o';
+      const dashes = '-'.repeat(length + 1);
+      // Normal lines (support circle/cross endpoints)
+      if (arrowStart === 'circle' && arrowEnd === 'circle') {
+        baseOp = `o${dashes}o`;
       } else if (arrowStart === 'cross' && arrowEnd === 'cross') {
-        baseOp = 'x--x';
-      } else if (arrowEnd === 'circle') {
-        baseOp = '--o';
-      } else if (arrowEnd === 'cross') {
-        baseOp = '--x';
+        baseOp = `x${dashes}x`;
+      } else if (arrowEnd === 'circle' && arrowStart === 'none') {
+        baseOp = `${dashes}o`;
+      } else if (arrowEnd === 'cross' && arrowStart === 'none') {
+        baseOp = `${dashes}x`;
+      } else if (arrowStart === 'circle' && arrowEnd === 'none') {
+        baseOp = `o${dashes}`;
+      } else if (arrowStart === 'cross' && arrowEnd === 'none') {
+        baseOp = `x${dashes}`;
+      } else if (arrowStart === 'arrow' && arrowEnd === 'arrow') {
+        baseOp = `<${dashes}>`;
+      } else if (arrowStart === 'arrow') {
+        baseOp = `<${dashes}`;
+      } else if (arrowEnd === 'arrow') {
+        baseOp = `${dashes}>`;
       } else {
-        baseOp = '---';
+        baseOp = dashes;
       }
     }
 
@@ -398,6 +432,56 @@ export class MermaidSerializer {
       .replace(/"/g, '#quot;')   // double quote
       .replace(/\n/g, ' ')       // newline
       .replace(/\r/g, '');       // carriage return
+  }
+
+  /**
+   * Serialize edge property statements (animate/animation)
+   */
+  private serializeEdgeProperties(model: FlowchartModel): string[] {
+    const lines: string[] = [];
+
+    for (const edge of model.edges) {
+      if (!edge.animate && !edge.animation) continue;
+
+      const props: string[] = [];
+      if (edge.animate) {
+        props.push('animate: true');
+      }
+      if (edge.animation) {
+        props.push(`animation: ${edge.animation}`);
+      }
+
+      if (props.length > 0) {
+        lines.push(`${edge.id}@{ ${props.join(', ')} }`);
+      }
+    }
+
+    return lines;
+  }
+
+  /**
+   * Serialize linkStyle statements for edges
+   */
+  private serializeLinkStyles(model: FlowchartModel): string[] {
+    const lines: string[] = [];
+
+    model.edges.forEach((edge, index) => {
+      if (!edge.style) return;
+
+      const styles: string[] = [];
+      if (edge.style.stroke) {
+        styles.push(`stroke:${edge.style.stroke}`);
+      }
+      if (edge.style.strokeWidth !== undefined) {
+        styles.push(`stroke-width:${edge.style.strokeWidth}px`);
+      }
+
+      if (styles.length > 0) {
+        lines.push(`linkStyle ${index} ${styles.join(',')}`);
+      }
+    });
+
+    return lines;
   }
 
   /**

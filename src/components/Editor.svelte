@@ -266,7 +266,7 @@
    */
   function handleEditEdge(edgeId: string, sourceId: string, targetId: string, currentText?: string): void {
     // 获取边的当前属性
-    const edge = syncEngine.getEdge(sourceId, targetId);
+    const edge = syncEngine.getEdgeById(edgeId);
     edgeEditDialogState = {
       visible: true,
       edgeId,
@@ -274,7 +274,7 @@
       targetId,
       text: currentText || '',
       stroke: edge?.stroke || 'normal',
-      arrow: edge?.arrowType || 'arrow',
+      arrow: edge?.arrowEnd || 'arrow',
     };
   }
 
@@ -288,9 +288,7 @@
     arrow: ArrowType
   ): void {
     try {
-      // 更新边文本
-      syncEngine.updateEdgeText(edgeId, text);
-      // TODO: 未来可扩展支持更新 stroke 和 arrow 类型
+      syncEngine.updateEdge(edgeId, { text, stroke, arrowEnd: arrow });
     } catch (error) {
       console.error('[Editor] Failed to update edge:', error);
     }
@@ -393,7 +391,7 @@
         // 生成新节点 ID
         const newNodeId = generateNewNodeId();
         // 先创建新节点
-        syncEngine.addNode(newNodeId, '新节点', 'rect');
+        syncEngine.addNode(newNodeId, '新节点', undefined, 'rect');
         // 然后添加边
         syncEngine.addEdge(sourceId, newNodeId, text || undefined, stroke, arrowType);
       } else {

@@ -322,10 +322,15 @@ export class MermaidParser {
     if (match) {
       const id = match[1];
       const title = match[2] || id;
+      const parentId =
+        ctx.subGraphStack.length > 0
+          ? ctx.subGraphStack[ctx.subGraphStack.length - 1]
+          : undefined;
       ctx.subGraphs.push({
         id,
         title,
         nodeIds: [],
+        parentId,
         // Don't inherit direction - subgraph can have its own direction
       });
       ctx.subGraphStack.push(id);

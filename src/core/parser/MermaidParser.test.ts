@@ -105,6 +105,26 @@ describe('MermaidParser', () => {
       expect(model.getNode('C')?.parentId).toBeUndefined();
     });
 
+    it('should parse nested subgraphs with parent references', () => {
+      const code = `flowchart TB
+        subgraph outer
+          subgraph inner
+            A[Node A]
+          end
+          B[Node B]
+        end`;
+
+      const model = parser.parse(code);
+
+      const outer = model.subGraphs.find((s) => s.id === 'outer');
+      const inner = model.subGraphs.find((s) => s.id === 'inner');
+
+      expect(outer?.parentId).toBeUndefined();
+      expect(inner?.parentId).toBe('outer');
+      expect(model.getNode('A')?.parentId).toBe('inner');
+      expect(model.getNode('B')?.parentId).toBe('outer');
+    });
+
     it('should parse class definitions', () => {
       const code = `flowchart TB
         A[Node]

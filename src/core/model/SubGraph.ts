@@ -7,6 +7,7 @@ export interface SubGraphData {
   id: string;
   title: string;
   nodeIds: string[];
+  parentId?: string;
   direction?: Direction;
   cssClasses?: string[];
 }
@@ -18,6 +19,7 @@ export class FlowSubGraph implements SubGraphData {
   readonly id: string;
   title: string;
   nodeIds: string[];
+  parentId?: string;
   direction?: Direction;
   cssClasses: string[];
 
@@ -25,6 +27,7 @@ export class FlowSubGraph implements SubGraphData {
     this.id = data.id;
     this.title = data.title;
     this.nodeIds = [...data.nodeIds];
+    this.parentId = data.parentId;
     this.direction = data.direction;
     this.cssClasses = data.cssClasses ? [...data.cssClasses] : [];
   }
@@ -67,6 +70,7 @@ export class FlowSubGraph implements SubGraphData {
       id: this.id,
       title: this.title,
       nodeIds: [...this.nodeIds],
+      parentId: this.parentId,
       direction: this.direction,
       cssClasses: [...this.cssClasses],
     });
@@ -80,6 +84,7 @@ export class FlowSubGraph implements SubGraphData {
       id: this.id,
       title: this.title,
       nodeIds: [...this.nodeIds],
+      parentId: this.parentId,
       direction: this.direction,
       cssClasses: [...this.cssClasses],
     };

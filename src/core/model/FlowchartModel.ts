@@ -170,7 +170,12 @@ export class FlowchartModel extends EventEmitter<ModelChangeEvent> {
       return newId;
     }
     // Fallback to original method
-    return `edge-${++this._edgeCounter}`;
+    let newId = '';
+    do {
+      this._edgeCounter += 1;
+      newId = `edge-${this._edgeCounter}`;
+    } while (this._edges.has(newId));
+    return newId;
   }
 
   /**
@@ -407,6 +412,16 @@ export class FlowchartModel extends EventEmitter<ModelChangeEvent> {
         model._classDefs.set(name, { ...def });
       }
     }
+
+    // Sync edge counter with existing numeric edge IDs
+    let maxCounter = 0;
+    for (const edgeId of model._edges.keys()) {
+      const match = edgeId.match(/^edge-(\d+)$/);
+      if (match) {
+        maxCounter = Math.max(maxCounter, Number.parseInt(match[1], 10));
+      }
+    }
+    model._edgeCounter = maxCounter;
 
     return model;
   }
