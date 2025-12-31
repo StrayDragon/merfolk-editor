@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Merfolk Editor - Standalone Demo</title>
+    <link rel="stylesheet" href="./demo.css" />
+    <link rel="stylesheet" href="../dist/standalone/merfolk-editor.css" />
+  </head>
+  <body>
+    <div class="demo-shell">
+      <header>
+        <div>
+          <div class="title">Merfolk Standalone Demo</div>
+          <div class="subtitle">
+            Plain HTML embed using the IIFE bundle. No bundler required.
+          </div>
+        </div>
+        <div class="badge-row">
+          <span class="badge">IIFE Bundle</span>
+          <span class="badge alt">Static HTML</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="panel">
+          <h3>Integration Notes</h3>
+          <p>
+            The editor is attached to <code>window.MerfolkEditor</code> and can
+            be mounted inside any container.
+          </p>
+          <div class="status">
+            Status:
+            <strong id="demo-status">Idle</strong>
+          </div>
+          <div id="code-preview" class="code-preview"></div>
+          <div class="note">Run <code>pnpm build:standalone</code> first.</div>
+        </section>
+
+        <section class="panel editor-panel">
+          <div class="editor-header">
+            <h3>Editor Frame</h3>
+            <span>Standalone (no bundler)</span>
+          </div>
+          <div id="merfolk-embed"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="../dist/standalone/merfolk-editor.iife.js"></script>
+    <script>
+      const container = document.getElementById('merfolk-embed');
+      const statusEl = document.getElementById('demo-status');
+      const previewEl = document.getElementById('code-preview');
+
+      const initialCode = `flowchart TB
+  Start([Kickoff]) --> Spec{Spec ready?}
+  Spec -- yes --> Build[Build embed]
+  Spec -- no --> Draft[Draft notes]
+  Build --> Review[Review]
+  Review --> Ship{Ship?}
+  Ship -- yes --> Done([Release])
+  Ship -- no --> Iterate[Iterate]
+  Draft --> Spec
+`;
+
+      previewEl.textContent = initialCode;
+
+      const editor = new window.MerfolkEditor(container, {
+        initialCode,
+        onCodeChange: (code, meta) => {
+          statusEl.textContent = `${meta.source} @ ${new Date().toLocaleTimeString()}`;
+          previewEl.textContent = code;
+        },
+      });
+
+      window.addEventListener('beforeunload', () => {
+        editor.destroy();
+      });
+    </script>
+  </body>
+</html>

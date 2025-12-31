@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Merfolk Editor - Embedded Demo</title>
+    <link rel="stylesheet" href="/demo/demo.css" />
+  </head>
+  <body>
+    <div class="demo-shell">
+      <header>
+        <div>
+          <div class="title">Merfolk Embed Demo</div>
+          <div class="subtitle">
+            A minimal integration using the built ESM bundle. The editor lives inside a
+            regular layout and emits code updates below.
+          </div>
+        </div>
+        <div class="badge-row">
+          <span class="badge">ESM Bundle</span>
+          <span class="badge alt">Layout Embed</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="panel">
+          <h3>Integration Notes</h3>
+          <p>
+            This demo mounts the library into a nested container and listens for
+            <code>onCodeChange</code> updates.
+          </p>
+          <div class="status">
+            Status:
+            <strong id="demo-status">Idle</strong>
+          </div>
+          <div id="code-preview" class="code-preview"></div>
+          <div class="note">Built assets expected in <code>dist/</code>.</div>
+        </section>
+
+        <section class="panel editor-panel">
+          <div class="editor-header">
+            <h3>Editor Frame</h3>
+            <span>Resize to test responsiveness</span>
+          </div>
+          <div id="merfolk-embed"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/demo/main.ts"></script>
+  </body>
+</html>
