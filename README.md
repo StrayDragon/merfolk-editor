@@ -36,7 +36,6 @@ Merfolk Editor 提供了创建和编辑 Mermaid 流程图的流畅体验:
 | 边连接 | 从端口拖拽创建连线 |
 | 代码编辑器 | 实时 Mermaid 代码同步 |
 | 自动布局 | 一键整理图表结构 |
-| 命令模式 | 完整的撤销/重做支持 |
 | 键盘快捷键 | 高效的纯键盘操作 |
 
 ## 支持的图表类型
@@ -66,6 +65,94 @@ pnpm check
 
 # 构建库
 pnpm build
+```
+
+## Demo
+
+See `demo/README.md` for the embedded ESM demo and the standalone HTML demo.
+
+## 作为库使用
+
+### 安装 (GitHub Release Tag)
+
+```bash
+npm i github:straydragon/merfolk-editor#v0.1.0
+# 或
+npm i https://github.com/straydragon/merfolk-editor.git#v0.1.0
+
+# 需要同时安装 peerDependencies
+npm i mermaid d3 @dagrejs/dagre svelte
+```
+
+> 提示: 若希望直接从 tag 使用已构建产物,请确保 tag 对应提交包含 `dist/` 目录,或保持 `prepare` 可用以在安装时构建。
+
+### 快速上手 (提供完整页面)
+
+```ts
+import MerfolkEditor from 'merfolk-editor';
+import 'merfolk-editor/style';
+
+const container = document.getElementById('app')!;
+const editor = new MerfolkEditor(container, {
+  initialCode: 'flowchart TB\nA-->B',
+  onCodeChange: (code) => {
+    console.log(code);
+  },
+});
+```
+
+```css
+#app {
+  width: 100vw;
+  height: 100vh;
+}
+```
+
+### Standalone (IIFE/UMD, 含依赖)
+
+适合 VS Code Webview / 纯 HTML 页面，脚本会在全局暴露 `MerfolkEditor`。
+
+```html
+<link rel="stylesheet" href="./node_modules/merfolk-editor/dist/standalone/merfolk-editor.css" />
+<script src="./node_modules/merfolk-editor/dist/standalone/merfolk-editor.iife.js"></script>
+<div id="app"></div>
+<script>
+  const editor = new window.MerfolkEditor(document.getElementById('app'), {
+    initialCode: 'flowchart TB\nA-->B',
+  });
+<\/script>
+```
+
+### 进阶选项 (示例)
+
+```ts
+const editor = new MerfolkEditor(container, {
+  initialCode: 'flowchart TB\nA-->B',
+  readOnly: false,
+  showCodePanel: true,
+  onCodeChange: (code, meta) => {
+    console.log(meta.source, code);
+  },
+});
+```
+
+### Svelte 组件方式
+
+```svelte
+<script lang="ts">
+  import { Editor } from 'merfolk-editor';
+  import 'merfolk-editor/style';
+
+  let code = `flowchart TB
+    A-->B
+  `;
+
+  const handleChange = (next: string) => {
+    code = next;
+  };
+</script>
+
+<Editor initialCode={code} onCodeChange={handleChange} />
 ```
 
 ## 技术栈
