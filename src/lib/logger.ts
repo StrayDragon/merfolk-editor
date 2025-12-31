@@ -4,6 +4,13 @@
  */
 
 const LOG_PREFIX = '[MerfolkEditor]';
+const globalProcess =
+  typeof globalThis !== 'undefined'
+    ? (globalThis as { process?: { env?: { NODE_ENV?: string } } }).process
+    : undefined;
+const isDev =
+  (typeof import.meta !== 'undefined' && (import.meta as { env?: { DEV?: boolean } }).env?.DEV) ??
+  (globalProcess?.env?.NODE_ENV !== 'production');
 
 interface Logger {
   debug: (...args: unknown[]) => void;
@@ -19,7 +26,7 @@ function createLogger(componentPrefix: string): Logger {
 
   return {
     debug: (...args: unknown[]) => {
-      if (import.meta.env.DEV) {
+      if (isDev) {
         console.debug(prefix, ...args);
       }
     },
