@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { StrokeType, ArrowType } from '$core/model/types';
+  import type { StrokeType, ArrowType } from '../core/model/types';
 
   interface Props {
     /** 边 ID */
@@ -62,19 +62,16 @@
   onMount(() => {
     inputEl?.focus();
     inputEl?.select();
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onCancel();
-      } else if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleConfirm();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
   });
+
+  function handleKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'Escape') {
+      onCancel();
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleConfirm();
+    }
+  }
 
   function handleConfirm(): void {
     onConfirm(edgeId, text.trim(), stroke, arrow);
@@ -89,7 +86,13 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="dialog-backdrop" onclick={handleBackdropClick} role="presentation">
+<div
+  class="dialog-backdrop"
+  onclick={handleBackdropClick}
+  onkeydown={handleKeyDown}
+  role="presentation"
+  tabindex="-1"
+>
   <div
     class="dialog"
     role="dialog"
@@ -177,7 +180,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--merfolk-backdrop, rgba(0, 0, 0, 0.4));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -191,9 +194,9 @@
   }
 
   .dialog {
-    background: #ffffff;
+    background: var(--merfolk-panel, #ffffff);
     border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 8px 32px var(--merfolk-shadow, rgba(0, 0, 0, 0.2));
     min-width: 380px;
     max-width: 480px;
     animation: slideUp 0.2s ease;
@@ -215,21 +218,21 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid #e8e8e8;
+    border-bottom: 1px solid var(--merfolk-border, #e8e8e8);
   }
 
   .dialog-header h3 {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--merfolk-text, #1a1a1a);
   }
 
   .close-btn {
     background: none;
     border: none;
     font-size: 16px;
-    color: #666;
+    color: var(--merfolk-text-muted, #666);
     cursor: pointer;
     padding: 4px 8px;
     border-radius: 4px;
@@ -237,8 +240,8 @@
   }
 
   .close-btn:hover {
-    background: #f0f0f0;
-    color: #333;
+    background: var(--merfolk-button-hover, #f0f0f0);
+    color: var(--merfolk-text, #333);
   }
 
   .dialog-body {
@@ -252,7 +255,7 @@
     justify-content: center;
     gap: 12px;
     padding: 16px;
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    background: var(--merfolk-panel-muted, linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%));
     border-radius: 8px;
     margin-bottom: 20px;
   }
@@ -263,19 +266,19 @@
     justify-content: center;
     min-width: 40px;
     padding: 6px 12px;
-    background: #fff;
-    border: 2px solid #1976d2;
+    background: var(--merfolk-panel, #fff);
+    border: 2px solid var(--merfolk-accent, #1976d2);
     border-radius: 6px;
     font-size: 12px;
     font-weight: 600;
-    color: #1976d2;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    color: var(--merfolk-accent, #1976d2);
+    box-shadow: 0 1px 3px var(--merfolk-shadow-soft, rgba(0, 0, 0, 0.1));
   }
 
   .edge-line {
     font-family: monospace;
     font-size: 14px;
-    color: #666;
+    color: var(--merfolk-text-muted, #666);
     letter-spacing: -1px;
   }
 
@@ -291,14 +294,14 @@
     display: block;
     font-size: 13px;
     font-weight: 500;
-    color: #444;
+    color: var(--merfolk-text, #444);
     margin-bottom: 8px;
   }
 
   .form-group input[type="text"] {
     width: 100%;
     padding: 10px 12px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--merfolk-border, #ddd);
     border-radius: 6px;
     font-size: 14px;
     transition: border-color 0.15s, box-shadow 0.15s;
@@ -307,8 +310,8 @@
 
   .form-group input[type="text"]:focus {
     outline: none;
-    border-color: #1976d2;
-    box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+    border-color: var(--merfolk-accent, #1976d2);
+    box-shadow: 0 0 0 3px var(--merfolk-accent-glow-soft, rgba(25, 118, 210, 0.1));
   }
 
   .option-row {
@@ -322,28 +325,28 @@
     flex-direction: column;
     align-items: center;
     padding: 12px 8px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--merfolk-border, #e0e0e0);
     border-radius: 8px;
-    background: #fafafa;
+    background: var(--merfolk-panel-muted, #fafafa);
     cursor: pointer;
     transition: all 0.15s;
     gap: 6px;
   }
 
   .style-option:hover {
-    border-color: #bbb;
-    background: #f0f0f0;
+    border-color: var(--merfolk-border-strong, #bbb);
+    background: var(--merfolk-button-hover, #f0f0f0);
   }
 
   .style-option.selected {
-    border-color: #1976d2;
-    background: #e3f2fd;
+    border-color: var(--merfolk-accent, #1976d2);
+    background: var(--merfolk-accent-soft, #e3f2fd);
   }
 
   .option-preview {
     font-family: monospace;
     font-size: 14px;
-    color: #333;
+    color: var(--merfolk-text, #333);
     letter-spacing: -1px;
   }
 
@@ -354,11 +357,11 @@
 
   .option-label {
     font-size: 11px;
-    color: #666;
+    color: var(--merfolk-text-muted, #666);
   }
 
   .style-option.selected .option-label {
-    color: #1976d2;
+    color: var(--merfolk-accent, #1976d2);
     font-weight: 500;
   }
 
@@ -367,8 +370,8 @@
     justify-content: flex-end;
     gap: 8px;
     padding: 16px 20px;
-    border-top: 1px solid #e8e8e8;
-    background: #fafafa;
+    border-top: 1px solid var(--merfolk-border, #e8e8e8);
+    background: var(--merfolk-panel-muted, #fafafa);
     border-radius: 0 0 12px 12px;
   }
 
@@ -383,22 +386,22 @@
   }
 
   .btn-secondary {
-    background: #fff;
-    border-color: #ddd;
-    color: #666;
+    background: var(--merfolk-panel, #fff);
+    border-color: var(--merfolk-border, #ddd);
+    color: var(--merfolk-text-muted, #666);
   }
 
   .btn-secondary:hover {
-    background: #f5f5f5;
-    border-color: #ccc;
+    background: var(--merfolk-button-hover, #f5f5f5);
+    border-color: var(--merfolk-border-strong, #ccc);
   }
 
   .btn-primary {
-    background: #1976d2;
-    color: #fff;
+    background: var(--merfolk-accent, #1976d2);
+    color: var(--merfolk-accent-contrast, #fff);
   }
 
   .btn-primary:hover {
-    background: #1565c0;
+    background: var(--merfolk-accent-strong, #1565c0);
   }
 </style>
