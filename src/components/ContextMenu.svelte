@@ -146,21 +146,19 @@
       }
     };
 
-    // 按 Escape 关闭菜单
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
     document.addEventListener('click', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
+    menuEl?.focus();
 
     return () => {
       document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
     };
   });
+
+  function handleKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'Escape') {
+      onClose();
+    }
+  }
 
   function handleItemClick(item: MenuItem): void {
     if (item.disabled || item.separator) return;
@@ -209,6 +207,8 @@
   bind:this={menuEl}
   style="left: {x}px; top: {y}px;"
   role="menu"
+  tabindex="-1"
+  onkeydown={handleKeyDown}
 >
   {#each items as item}
     {#if item.separator}
@@ -279,10 +279,10 @@
     z-index: 1000;
     min-width: 180px;
     padding: 4px 0;
-    background: #ffffff;
-    border: 1px solid #e0e0e0;
+    background: var(--merfolk-panel, #ffffff);
+    border: 1px solid var(--merfolk-border, #e0e0e0);
     border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px var(--merfolk-shadow, rgba(0, 0, 0, 0.15));
     font-size: 13px;
   }
 
@@ -302,7 +302,7 @@
 
   .menu-item:hover:not(.disabled),
   .menu-item.submenu-active:not(.disabled) {
-    background: #f5f5f5;
+    background: var(--merfolk-button-hover, #f5f5f5);
   }
 
   .menu-item.disabled {
@@ -311,11 +311,11 @@
   }
 
   .menu-item.danger {
-    color: #d32f2f;
+    color: var(--merfolk-danger, #d32f2f);
   }
 
   .menu-item.danger:hover:not(.disabled) {
-    background: #ffebee;
+    background: var(--merfolk-danger-soft, #ffebee);
   }
 
   .menu-icon {
@@ -332,14 +332,14 @@
 
   .menu-shortcut {
     font-size: 11px;
-    color: #999;
+    color: var(--merfolk-text-muted, #999);
     margin-left: 8px;
     flex-shrink: 0;
   }
 
   .submenu-arrow {
     font-size: 10px;
-    color: #999;
+    color: var(--merfolk-text-muted, #999);
     margin-left: 4px;
     flex-shrink: 0;
   }
@@ -347,7 +347,7 @@
   .menu-separator {
     height: 1px;
     margin: 4px 8px;
-    background: #e0e0e0;
+    background: var(--merfolk-border, #e0e0e0);
   }
 
   /* 子菜单样式 */
@@ -356,10 +356,10 @@
     z-index: 1001;
     min-width: 180px;
     padding: 4px 0;
-    background: #ffffff;
-    border: 1px solid #e0e0e0;
+    background: var(--merfolk-panel, #ffffff);
+    border: 1px solid var(--merfolk-border, #e0e0e0);
     border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px var(--merfolk-shadow, rgba(0, 0, 0, 0.15));
     font-size: 13px;
   }
 </style>
