@@ -11,7 +11,7 @@ export default defineConfig({
       include: ['src/lib/**/*.ts', 'src/core/**/*.ts', 'src/**/*.d.ts'],
       exclude: ['**/*.test.ts', '**/*.spec.ts'],
       outDir: 'dist/lib',
-      rollupTypes: true,
+      rollupTypes: false,
       insertTypesEntry: true,
     }),
   ],
@@ -27,10 +27,13 @@ export default defineConfig({
       ),
       formats: ['es', 'cjs']
     },
+    emptyOutDir: false,
     rollupOptions: {
       external: [
         'svelte',
         'svelte/internal',
+        'svelte/internal/client',
+        'svelte/internal/disclose-version',
         'svelte/store',
         'mermaid',
         'd3',
@@ -38,6 +41,7 @@ export default defineConfig({
       ],
       output: {
         assetFileNames: 'merfolk-editor[extname]',
+        exports: 'named',
         globals: {
           'svelte': 'Svelte',
           'mermaid': 'mermaid',
