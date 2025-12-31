@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ShapeType } from '$core/model/types';
+  import type { ShapeType } from '../core/model/types';
 
   interface ShapeItem {
     type: ShapeType;
@@ -92,8 +92,8 @@
 <style>
   .shape-panel {
     width: 200px;
-    background: #fff;
-    border-right: 1px solid #e0e0e0;
+    background: var(--merfolk-panel, #fff);
+    border-right: 1px solid var(--merfolk-border, #e0e0e0);
     padding: 12px;
     overflow-y: auto;
     font-size: 13px;
@@ -103,7 +103,7 @@
     margin: 0 0 12px 0;
     font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: var(--merfolk-text, #333);
   }
 
   .category {
@@ -113,7 +113,7 @@
   .category-label {
     font-size: 11px;
     font-weight: 500;
-    color: #666;
+    color: var(--merfolk-text-muted, #666);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 8px;
@@ -131,8 +131,8 @@
     align-items: center;
     justify-content: center;
     padding: 8px 4px;
-    background: #f8f8f8;
-    border: 1px solid #e0e0e0;
+    background: var(--merfolk-panel-muted, #f8f8f8);
+    border: 1px solid var(--merfolk-border, #e0e0e0);
     border-radius: 6px;
     cursor: grab;
     transition: all 0.15s ease;
@@ -140,14 +140,14 @@
   }
 
   .shape-item:hover {
-    background: #eef5ff;
-    border-color: #1976d2;
+    background: var(--merfolk-accent-soft, #eef5ff);
+    border-color: var(--merfolk-accent, #1976d2);
   }
 
   .shape-item.selected {
-    background: #e3f2fd;
-    border-color: #1976d2;
-    box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+    background: var(--merfolk-accent-soft, #e3f2fd);
+    border-color: var(--merfolk-accent, #1976d2);
+    box-shadow: 0 0 0 2px var(--merfolk-accent-glow-soft, rgba(25, 118, 210, 0.2));
   }
 
   .shape-item:active {
@@ -163,7 +163,7 @@
 
   .shape-label {
     font-size: 10px;
-    color: #666;
+    color: var(--merfolk-text-muted, #666);
     text-align: center;
     white-space: nowrap;
     overflow: hidden;
@@ -172,8 +172,7 @@
   }
 
   .shape-item.selected .shape-label {
-    color: #1565c0;
+    color: var(--merfolk-accent-strong, #1565c0);
     font-weight: 500;
   }
 </style>
-

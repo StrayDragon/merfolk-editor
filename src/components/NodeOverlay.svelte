@@ -62,9 +62,9 @@
   title="添加下级节点连接"
 >
   <svg viewBox="0 0 16 16" width="16" height="16">
-    <circle cx="8" cy="8" r="7" fill="white" stroke="#0d6efd" stroke-width="2"/>
-    <line x1="8" y1="4" x2="8" y2="12" stroke="#0d6efd" stroke-width="2" stroke-linecap="round"/>
-    <line x1="4" y1="8" x2="12" y2="8" stroke="#0d6efd" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="8" cy="8" r="7" fill="var(--merfolk-panel, #ffffff)" stroke="currentColor" stroke-width="2"/>
+    <line x1="8" y1="4" x2="8" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <line x1="4" y1="8" x2="12" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
   </svg>
 </button>
 
@@ -90,7 +90,7 @@
 <style>
   .selection-box {
     position: absolute;
-    border: 2px solid #0d6efd;
+    border: 2px solid var(--merfolk-accent, #0d6efd);
     background: transparent;
     pointer-events: none;
     z-index: 10;
@@ -105,19 +105,19 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: white;
+    background: var(--merfolk-panel, #ffffff);
     border: none;
     border-radius: 50%;
     cursor: pointer;
     z-index: 20;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 1px 4px var(--merfolk-shadow-soft, rgba(0, 0, 0, 0.2));
     padding: 0;
     transition: transform 0.1s ease;
   }
 
   .port-button:hover {
     transform: translate(-50%, -50%) scale(1.15);
-    box-shadow: 0 2px 8px rgba(13, 110, 253, 0.4);
+    box-shadow: 0 2px 8px var(--merfolk-accent-glow, rgba(13, 110, 253, 0.4));
   }
 
   .toolbar {
@@ -126,10 +126,10 @@
     display: flex;
     gap: 1px;
     padding: 3px;
-    background: #fff;
-    border: 1px solid #dee2e6;
+    background: var(--merfolk-panel, #ffffff);
+    border: 1px solid var(--merfolk-border, #dee2e6);
     border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    box-shadow: 0 2px 8px var(--merfolk-shadow-soft, rgba(0, 0, 0, 0.12));
     z-index: 30;
   }
 
@@ -143,16 +143,16 @@
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: #495057;
+    color: var(--merfolk-text, #495057);
     cursor: pointer;
   }
 
   .toolbar button:hover {
-    background: #f1f3f4;
+    background: var(--merfolk-button-hover, #f1f3f4);
   }
 
   .toolbar button.danger:hover {
-    background: #fff5f5;
-    color: #dc3545;
+    background: var(--merfolk-danger-soft, #fff5f5);
+    color: var(--merfolk-danger, #dc3545);
   }
 </style>

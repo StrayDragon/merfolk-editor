@@ -25,10 +25,6 @@
     console.log('[DebugCompare] Node selected:', nodeId);
   }
 
-  function handleNodeMove(nodeId: string, x: number, y: number): void {
-    console.log('[DebugCompare] Node moved:', nodeId, 'to', x, y);
-  }
-
   // Zoom controls for interactive canvas
   function fitToView(): void {
     interactiveCanvasRef?.fitToView();
@@ -65,7 +61,7 @@
   <div class="panel">
     <div class="panel-header">
       <span class="panel-title">Interactive Canvas</span>
-      <span class="panel-badge editable">Editable (Drag nodes!)</span>
+      <span class="panel-badge editable">Editable</span>
       <div class="panel-controls">
         <button onclick={zoomOut} title="Zoom Out">−</button>
         <button onclick={fitToView} title="Fit to View">⊡</button>
@@ -78,7 +74,6 @@
         {code}
         onError={handleInteractiveError}
         onNodeSelect={handleNodeSelect}
-        onNodeMove={handleNodeMove}
       />
       {#if interactiveError}
         <div class="error-overlay">{interactiveError}</div>

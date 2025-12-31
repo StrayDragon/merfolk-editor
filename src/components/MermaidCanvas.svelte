@@ -203,7 +203,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #fafafa;
+    background: var(--merfolk-canvas-bg, #fafafa);
   }
 
   .mermaid-canvas :global(svg) {
@@ -215,7 +215,7 @@
   .mermaid-canvas :global(.render-error) {
     padding: 20px;
     text-align: center;
-    color: #d32f2f;
+    color: var(--merfolk-danger, #d32f2f);
   }
 
   .mermaid-canvas :global(.error-title) {
@@ -226,7 +226,7 @@
 
   .mermaid-canvas :global(.error-message) {
     font-size: 12px;
-    background: #ffebee;
+    background: var(--merfolk-danger-soft, #ffebee);
     padding: 10px;
     border-radius: 4px;
     text-align: left;

@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import mermaid from 'mermaid';
-  import * as d3 from 'd3';
+  import type { MermaidConfig } from 'mermaid';
   import { MermaidParser } from '../core/parser/MermaidParser';
   import type { FlowEdge } from '../core/model/Edge';
   import { interactiveCanvasLogger as logger } from '../lib/logger';
   import { CANVAS_PADDING, MIN_LABEL_DISTANCE, MAX_LABEL_DISTANCE } from '../core/constants';
   import ContextMenu, { type MenuItem } from './ContextMenu.svelte';
+  import { ensureMermaidInitialized, resolveMermaidApi } from '../core/utils/mermaid';
+  import type { MermaidAPI, EditorStrings } from '../lib/types';
 
   interface ContextMenuState {
     visible: boolean;
@@ -15,7 +16,7 @@
     nodeId: string | null;
   }
 
-  import type { ShapeType } from '$core/model/types';
+  import type { ShapeType } from '../core/model/types';
 
   interface Props {
     code: string;
@@ -23,7 +24,6 @@
     readonly?: boolean;
     /** Error callback (null = no error) */
     onError?: (error: string | null) => void;
-    onNodeMove?: (nodeId: string, x: number, y: number) => void;
     onNodeSelect?: (nodeId: string | null) => void;
     /** 删除节点回调 */
     onDeleteNode?: (nodeId: string) => void;
@@ -51,13 +51,22 @@
     minScale?: number;
     /** 最大缩放比例 */
     maxScale?: number;
+    /** Mermaid 实例 */
+    mermaid?: MermaidAPI;
+    /** Mermaid 初始化配置 */
+    mermaidConfig?: MermaidConfig;
+    /** 是否初始化 Mermaid */
+    initializeMermaid?: boolean;
+    /** 尺寸变化时自动适配视图 */
+    autoFitOnResize?: boolean;
+    /** UI 文案覆写 */
+    strings?: EditorStrings['helpPanel'];
   }
 
   let {
     code,
     readonly = false,
     onError,
-    onNodeMove,
     onNodeSelect,
     onDeleteNode,
     onAddNode,
@@ -71,8 +80,23 @@
     onEditEnd,
     showGrid = true,
     minScale = 0.1,
-    maxScale = 4
+    maxScale = 4,
+    mermaid: mermaidInstance,
+    mermaidConfig,
+    initializeMermaid,
+    autoFitOnResize = true,
+    strings,
   }: Props = $props();
+
+
+  const helpStrings = $derived({
+    title: strings?.title ?? '快捷键帮助',
+    nodeSection: strings?.nodeSection ?? '节点操作',
+    edgeSection: strings?.edgeSection ?? '连线操作',
+    viewSection: strings?.viewSection ?? '视图操作',
+    readonlyHintTitle: strings?.readonlyHintTitle ?? '当前图类型为预览模式',
+    readonlyHintText: strings?.readonlyHintText ?? '请使用代码面板编辑',
+  });
 
   // 右键菜单状态
   let contextMenu = $state<ContextMenuState>({
@@ -87,6 +111,10 @@
   let renderCounter = 0;
   let selectedNodeId: string | null = $state(null);
   let selectedEdgeId: string | null = $state(null);
+  let hasUserTransformed = false;
+  const accentColor = 'var(--merfolk-accent, #1976d2)';
+  const successColor = 'var(--merfolk-success, #4caf50)';
+  const panelColor = 'var(--merfolk-panel, #ffffff)';
 
   // 多选支持
   let selectedNodeIds = $state<Set<string>>(new Set());
@@ -177,18 +205,36 @@
     cleanupFunctions.length = 0;
   });
 
+  function getMermaidApi(): MermaidAPI {
+    return resolveMermaidApi(mermaidInstance);
+  }
+
+  function shouldInitializeMermaid(): boolean {
+    if (initializeMermaid !== undefined) {
+      return initializeMermaid;
+    }
+    const hasWindowMermaid =
+      typeof window !== 'undefined' && !!(window as typeof window & { mermaid?: MermaidAPI }).mermaid;
+    return !mermaidInstance && !hasWindowMermaid;
+  }
+
+  function setupResizeObserver(): void {
+    if (!containerEl || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver(() => {
+      const rect = containerEl.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      resize();
+    });
+
+    observer.observe(containerEl);
+    cleanupFunctions.push(() => observer.disconnect());
+  }
+
   // Initialize mermaid
   onMount(() => {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'default',
-      flowchart: {
-        useMaxWidth: true,
-        htmlLabels: false, // 使用 SVG 标签
-        curve: 'basis',
-      },
-      securityLevel: 'loose',
-    });
+    ensureMermaidInitialized(getMermaidApi(), mermaidConfig, shouldInitializeMermaid());
+    setupResizeObserver();
   });
 
   // Re-render when code changes (with debounce)
@@ -197,7 +243,6 @@
   // 视图状态保持:记录是否是首次渲染
   let isFirstRender = true;
   // 上一次的代码,用于判断是否需要完全重渲染
-  let lastRenderedCode = '';
   // 待聚焦的节点 ID(新添加的节点)
   let pendingFocusNodeId: string | null = null;
 
@@ -221,6 +266,8 @@
     if (!svgContainerEl) return;
 
     const id = `mermaid-interactive-${++renderCounter}`;
+    const mermaidApi = getMermaidApi();
+    ensureMermaidInitialized(mermaidApi, mermaidConfig, shouldInitializeMermaid());
 
     // 保存当前视图状态(仅在非首次渲染时)
     const savedViewState = !isFirstRender ? {
@@ -233,10 +280,10 @@
 
     try {
       // 首先尝试解析代码
-      await mermaid.parse(mermaidCode);
+      await mermaidApi.parse(mermaidCode);
 
       // 解析成功,渲染图表
-      const { svg } = await mermaid.render(id, mermaidCode);
+      const { svg } = await mermaidApi.render(id, mermaidCode);
       svgContainerEl.innerHTML = svg;
 
       // 设置交互(传递解析后的模型信息)
@@ -277,8 +324,6 @@
         setupZoomPan();
         isFirstRender = false;
       }
-
-      lastRenderedCode = mermaidCode;
 
       // 清除之前的错误状态
       onError?.(null);
@@ -377,7 +422,7 @@
   /**
    * 开始拖拽连线
    */
-  function startDragEdge(nodeId: string, startX: number, startY: number): void {
+  function startDragEdge(nodeId: string): void {
     // 只读模式下不允许创建边
     if (readonly) return;
 
@@ -844,10 +889,6 @@
     return { x: 0, y: 0 };
   }
 
-  function getSvgElement(): SVGSVGElement | null {
-    return svgContainerEl?.querySelector('svg') ?? null;
-  }
-
   function getElementSvgBounds(
     element: SVGGraphicsElement
   ): { x: number; y: number; width: number; height: number } | null {
@@ -877,26 +918,6 @@
     };
   }
 
-  function svgCoordsToParent(element: SVGGraphicsElement, x: number, y: number): { x: number; y: number } {
-    const svg = getSvgElement();
-    const parent = element.parentElement;
-    if (!svg || !parent || !('getScreenCTM' in parent)) {
-      return { x, y };
-    }
-
-    const svgCTM = svg.getScreenCTM();
-    const parentCTM = (parent as SVGGraphicsElement).getScreenCTM();
-    if (!svgCTM || !parentCTM) {
-      return { x, y };
-    }
-
-    const point = svg.createSVGPoint();
-    point.x = x;
-    point.y = y;
-    const screenPoint = point.matrixTransform(svgCTM);
-    const localPoint = screenPoint.matrixTransform(parentCTM.inverse());
-    return { x: localPoint.x, y: localPoint.y };
-  }
 
   /**
    * 推断边的端点
@@ -1148,23 +1169,6 @@
   /**
    * 更新节点位置(保留用于未来可能的拖拽功能)
    */
-  function updateNodePosition(nodeId: string, x: number, y: number): void {
-    const nodeInfo = nodeInfoMap.get(nodeId);
-    if (!nodeInfo) return;
-
-    // 更新节点 transform
-    nodeInfo.x = x;
-    nodeInfo.y = y;
-    const local = svgCoordsToParent(nodeInfo.element, x, y);
-    nodeInfo.element.setAttribute('transform', `translate(${local.x}, ${local.y})`);
-
-    // 更新相关的边
-    updateConnectedEdges(nodeId);
-
-    // 更新 SVG viewBox 以适应新位置
-    updateSvgViewBox();
-  }
-
   /**
    * 计算 SVG viewBox 以适应所有节点位置
    */
@@ -1249,44 +1253,6 @@
   }
 
   /**
-   * 将相对路径点投影到当前节点位置
-   */
-  function projectRelativePoint(
-    relative: RelativePoint,
-    source: NodeInfo,
-    target: NodeInfo
-  ): Point {
-    const dirX = target.x - source.x;
-    const dirY = target.y - source.y;
-    const len = Math.hypot(dirX, dirY) || 1;
-    const dirUnit = len === 0 ? { x: 0, y: 0 } : { x: dirX / len, y: dirY / len };
-    const normal = { x: -dirUnit.y, y: dirUnit.x };
-    const along = relative.t * len;
-    const offset = relative.offsetRatio * len;
-
-    return {
-      x: source.x + along * dirUnit.x + offset * normal.x,
-      y: source.y + along * dirUnit.y + offset * normal.y,
-    };
-  }
-
-  /**
-   * 取得更新后的路径点,优先复用 Mermaid 给出的 data-points 形态
-   */
-  function getUpdatedEdgePoints(edge: EdgeInfo, source: NodeInfo, target: NodeInfo): Point[] {
-    if (edge.relativePoints?.length) {
-      return edge.relativePoints.map((rel) => projectRelativePoint(rel, source, target));
-    }
-
-    if (edge.decodedPoints?.length) {
-      edge.relativePoints = buildRelativePoints(edge.decodedPoints, source, target);
-      return edge.relativePoints.map((rel) => projectRelativePoint(rel, source, target));
-    }
-
-    return calculateEdgePoints(source, target);
-  }
-
-  /**
    * 通过 Path 的真实长度获取标签中心,保持与曲线一致
    */
   function getLabelPositionFromPath(path: SVGPathElement, points: Point[]): Point {
@@ -1338,9 +1304,6 @@
     label.setAttribute('text-anchor', 'middle');
     label.setAttribute('dominant-baseline', 'central');
     label.setAttribute('class', 'interactive-edge-label');
-    label.setAttribute('fill', '#333333');
-    label.setAttribute('font-size', '12px');
-    label.setAttribute('font-family', 'sans-serif');
     label.style.pointerEvents = 'none';
 
     // 挂到 SVG 顶层,便于统一 reposition
@@ -1368,163 +1331,6 @@
       labelElement: labelEl,
       labelContainer: getLabelContainer(labelEl),
     };
-  }
-
-  /**
-   * 更新与节点相连的边
-   */
-  function updateConnectedEdges(nodeId: string): void {
-    for (const edge of edgeInfoList) {
-      if (edge.sourceId === nodeId || edge.targetId === nodeId) {
-        updateEdgePath(edge);
-      }
-    }
-  }
-
-  /**
-   * 更新边的路径
-   */
-  function updateEdgePath(edge: EdgeInfo): void {
-    const sourceNode = nodeInfoMap.get(edge.sourceId);
-    const targetNode = nodeInfoMap.get(edge.targetId);
-
-    if (!sourceNode || !targetNode) {
-      logger.warn(`Missing nodes for edge ${edge.id}: source=${edge.sourceId}, target=${edge.targetId}`);
-      return;
-    }
-
-    // 计算新的路径点,尽可能保持 Mermaid 原有的曲线路径与偏移
-    const points = getUpdatedEdgePoints(edge, sourceNode, targetNode);
-
-    // 生成新的路径
-    const pathD = generateCurvePath(points);
-
-    edge.element.setAttribute('d', pathD);
-
-    // 恢复所有边属性 - 这是关键!
-    if (edge.markerStart) {
-      edge.element.setAttribute('marker-start', edge.markerStart);
-    } else {
-      edge.element.removeAttribute('marker-start');
-    }
-
-    if (edge.markerEnd) {
-      edge.element.setAttribute('marker-end', edge.markerEnd);
-    } else {
-      edge.element.removeAttribute('marker-end');
-    }
-
-    // 恢复CSS类
-    if (edge.cssClasses) {
-      edge.element.setAttribute('class', edge.cssClasses);
-    }
-
-    // 恢复边颜色
-    if (edge.stroke) {
-      edge.element.setAttribute('stroke', edge.stroke);
-    }
-
-    // 恢复边宽度
-    if (edge.strokeWidth) {
-      edge.element.setAttribute('stroke-width', edge.strokeWidth);
-    }
-
-    // 更新标签位置 - 使用类似 Mermaid 的算法
-    const labelTarget = edge.labelContainer ?? edge.labelElement;
-    if (!labelTarget) return;
-
-    const labelPos = getLabelPositionFromPath(edge.element, points);
-    labelTarget.setAttribute('transform', `translate(${labelPos.x}, ${labelPos.y})`);
-
-    // 确保标签可见性
-    labelTarget.style.display = 'block';
-    labelTarget.style.visibility = 'visible';
-  }
-
-  /**
-   * 计算边的路径点
-   */
-  function calculateEdgePoints(
-    source: NodeInfo,
-    target: NodeInfo
-  ): Point[] {
-    // 计算源和目标的中心点
-    const sourceCenter = { x: source.x, y: source.y };
-    const targetCenter = { x: target.x, y: target.y };
-
-    // 计算方向
-    const dx = targetCenter.x - sourceCenter.x;
-    const dy = targetCenter.y - sourceCenter.y;
-
-    // 计算边界交点
-    const sourcePoint = getIntersectionPoint(sourceCenter, { x: dx, y: dy }, source);
-    const targetPoint = getIntersectionPoint(targetCenter, { x: -dx, y: -dy }, target);
-
-    // 生成中间点(用于曲线)
-    const midX = (sourcePoint.x + targetPoint.x) / 2;
-    const midY = (sourcePoint.y + targetPoint.y) / 2;
-
-    // 根据方向添加控制点
-    if (Math.abs(dy) > Math.abs(dx)) {
-      // 主要是垂直方向
-      return [
-        sourcePoint,
-        { x: sourcePoint.x, y: midY },
-        { x: targetPoint.x, y: midY },
-        targetPoint,
-      ];
-    } else {
-      // 主要是水平方向
-      return [
-        sourcePoint,
-        { x: midX, y: sourcePoint.y },
-        { x: midX, y: targetPoint.y },
-        targetPoint,
-      ];
-    }
-  }
-
-  /**
-   * 计算从中心点到边界的交点
-   */
-  function getIntersectionPoint(
-    center: { x: number; y: number },
-    direction: { x: number; y: number },
-    node: NodeInfo
-  ): { x: number; y: number } {
-    const hw = node.width / 2;
-    const hh = node.height / 2;
-
-    const angle = Math.atan2(direction.y, direction.x);
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
-
-    let t: number;
-    if (Math.abs(cos) * hh > Math.abs(sin) * hw) {
-      t = hw / Math.abs(cos);
-    } else {
-      t = hh / Math.abs(sin);
-    }
-
-    return {
-      x: center.x + cos * t,
-      y: center.y + sin * t,
-    };
-  }
-
-  /**
-   * 生成曲线路径
-   */
-  function generateCurvePath(points: Point[]): string {
-    if (points.length < 2) return '';
-
-    const lineGenerator = d3
-      .line<Point>()
-      .x((d) => d.x)
-      .y((d) => d.y)
-      .curve(d3.curveBasis);
-
-    return lineGenerator(points) || '';
   }
 
   /**
@@ -1756,6 +1562,7 @@
   function handleWheel(event: WheelEvent): void {
     event.preventDefault();
     if (!containerEl) return;
+    hasUserTransformed = true;
 
     const rect = containerEl.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
@@ -1776,6 +1583,7 @@
   }
 
   function handleMouseDown(event: MouseEvent): void {
+    containerEl?.focus();
     // 只有在空白处才开始平移或框选
     const target = event.target as Element;
     if (target.closest('g.node')) return;
@@ -1795,6 +1603,7 @@
     }
 
     isPanning = true;
+    hasUserTransformed = true;
     lastX = event.clientX;
     lastY = event.clientY;
     containerEl.style.cursor = 'grabbing';
@@ -1854,6 +1663,7 @@
    * 键盘事件处理
    */
   function handleKeyDown(event: KeyboardEvent): void {
+    if (readonly) return;
     // Delete 或 Backspace 删除选中的节点或边
     if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault();
@@ -1914,6 +1724,7 @@
   // Public methods
   export function zoomIn(): void {
     if (!containerEl) return;
+    hasUserTransformed = true;
     const rect = containerEl.getBoundingClientRect();
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
@@ -1929,6 +1740,7 @@
 
   export function zoomOut(): void {
     if (!containerEl) return;
+    hasUserTransformed = true;
     const rect = containerEl.getBoundingClientRect();
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
@@ -1943,11 +1755,12 @@
   }
 
   export function resetZoom(): void {
+    hasUserTransformed = true;
     scale = 1;
     centerContent();
   }
 
-  export function fitToView(): void {
+  function fitToViewInternal(markUser: boolean): void {
     if (!containerEl || !svgContainerEl) return;
 
     const viewBox = calculateDynamicViewBox();
@@ -1964,6 +1777,26 @@
     // 调整平移以居中内容
     translateX = (containerRect.width - viewBox.width * scale) / 2 - viewBox.minX * scale;
     translateY = (containerRect.height - viewBox.height * scale) / 2 - viewBox.minY * scale;
+    if (markUser) {
+      hasUserTransformed = true;
+    }
+  }
+
+  export function fitToView(): void {
+    fitToViewInternal(true);
+  }
+
+  export function refresh(): void {
+    if (!containerEl || !code) return;
+    void renderDiagram(code);
+  }
+
+  export function resize(): void {
+    if (!containerEl) return;
+    syncSvgSizing();
+    if (autoFitOnResize && !hasUserTransformed) {
+      fitToViewInternal(false);
+    }
   }
 
   /**
@@ -2011,11 +1844,6 @@
   }
 
   // 响应式获取选中节点边界(SVG 坐标)
-  const selectedNodeSvgBounds = $derived.by(() => {
-    if (!selectedNodeId) return null;
-    return getSelectedNodeSvgBounds();
-  });
-
   /**
    * 在 SVG 内部渲染选择覆盖层
    */
@@ -2046,7 +1874,7 @@
     selectionRect.setAttribute('width', String(bounds.width + 4));
     selectionRect.setAttribute('height', String(bounds.height + 4));
     selectionRect.setAttribute('fill', 'none');
-    selectionRect.setAttribute('stroke', '#0d6efd');
+    selectionRect.setAttribute('stroke', accentColor);
     selectionRect.setAttribute('stroke-width', '2');
     selectionRect.setAttribute('rx', '2');
     selectionRect.style.pointerEvents = 'none';
@@ -2062,8 +1890,8 @@
     // 连接点背景圆
     const portCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     portCircle.setAttribute('r', '10');
-    portCircle.setAttribute('fill', 'white');
-    portCircle.setAttribute('stroke', '#0d6efd');
+    portCircle.setAttribute('fill', panelColor);
+    portCircle.setAttribute('stroke', accentColor);
     portCircle.setAttribute('stroke-width', '2');
     portGroup.appendChild(portCircle);
 
@@ -2073,7 +1901,7 @@
     hLine.setAttribute('y1', '0');
     hLine.setAttribute('x2', '5');
     hLine.setAttribute('y2', '0');
-    hLine.setAttribute('stroke', '#0d6efd');
+    hLine.setAttribute('stroke', accentColor);
     hLine.setAttribute('stroke-width', '2');
     hLine.setAttribute('stroke-linecap', 'round');
     portGroup.appendChild(hLine);
@@ -2084,7 +1912,7 @@
     vLine.setAttribute('y1', '-5');
     vLine.setAttribute('x2', '0');
     vLine.setAttribute('y2', '5');
-    vLine.setAttribute('stroke', '#0d6efd');
+    vLine.setAttribute('stroke', accentColor);
     vLine.setAttribute('stroke-width', '2');
     vLine.setAttribute('stroke-linecap', 'round');
     portGroup.appendChild(vLine);
@@ -2105,10 +1933,7 @@
       e.stopPropagation();
       e.preventDefault();
       if (nodeId && containerEl) {
-        const rect = containerEl.getBoundingClientRect();
-        const canvasX = (e.clientX - rect.left - translateX) / scale;
-        const canvasY = (e.clientY - rect.top - translateY) / scale;
-        startDragEdge(nodeId, canvasX, canvasY);
+        startDragEdge(nodeId);
       }
     });
 
@@ -2170,7 +1995,7 @@
     marker.setAttribute('markerUnits', 'strokeWidth');
     const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     arrowPath.setAttribute('d', 'M0,0 L0,6 L9,3 z');
-    arrowPath.setAttribute('fill', dragEdge.hoverTargetId ? '#4caf50' : '#1976d2');
+    arrowPath.setAttribute('fill', dragEdge.hoverTargetId ? successColor : accentColor);
     marker.appendChild(arrowPath);
     defs.appendChild(marker);
     dragGroup.appendChild(defs);
@@ -2181,7 +2006,7 @@
     line.setAttribute('y1', String(startY));
     line.setAttribute('x2', String(endX));
     line.setAttribute('y2', String(endY));
-    line.setAttribute('stroke', dragEdge.hoverTargetId ? '#4caf50' : '#1976d2');
+    line.setAttribute('stroke', dragEdge.hoverTargetId ? successColor : accentColor);
     line.setAttribute('stroke-width', '2');
     line.setAttribute('stroke-dasharray', '6,4');
     line.setAttribute('marker-end', 'url(#drag-arrow-svg)');
@@ -2193,7 +2018,7 @@
     startCircle.setAttribute('cx', String(startX));
     startCircle.setAttribute('cy', String(startY));
     startCircle.setAttribute('r', '4');
-    startCircle.setAttribute('fill', '#1976d2');
+    startCircle.setAttribute('fill', accentColor);
     startCircle.style.pointerEvents = 'none';
     dragGroup.appendChild(startCircle);
 
@@ -2205,7 +2030,7 @@
       pulseCircle.setAttribute('cy', String(endY));
       pulseCircle.setAttribute('r', '8');
       pulseCircle.setAttribute('fill', 'none');
-      pulseCircle.setAttribute('stroke', '#4caf50');
+      pulseCircle.setAttribute('stroke', successColor);
       pulseCircle.setAttribute('stroke-width', '2');
       pulseCircle.style.pointerEvents = 'none';
 
@@ -2231,7 +2056,7 @@
       endCircle.setAttribute('cx', String(endX));
       endCircle.setAttribute('cy', String(endY));
       endCircle.setAttribute('r', '6');
-      endCircle.setAttribute('fill', '#4caf50');
+      endCircle.setAttribute('fill', successColor);
       endCircle.style.pointerEvents = 'none';
       dragGroup.appendChild(endCircle);
     } else {
@@ -2240,7 +2065,7 @@
       endCircle.setAttribute('cy', String(endY));
       endCircle.setAttribute('r', '5');
       endCircle.setAttribute('fill', 'none');
-      endCircle.setAttribute('stroke', '#1976d2');
+      endCircle.setAttribute('stroke', accentColor);
       endCircle.setAttribute('stroke-width', '2');
       endCircle.setAttribute('stroke-dasharray', '3,2');
       endCircle.style.pointerEvents = 'none';
@@ -2565,27 +2390,27 @@
   {#if showHelpPanel}
     <div class="help-panel">
       <div class="help-panel-header">
-        <span>⌨️ {readonly ? '视图操作' : '快捷操作'}</span>
+        <span>⌨️ {helpStrings.title}</span>
         <button class="help-close" onclick={() => showHelpPanel = false}>×</button>
       </div>
       <div class="help-panel-content">
         {#if !readonly}
           <div class="help-section">
-            <h4>节点操作</h4>
+            <h4>{helpStrings.nodeSection}</h4>
             <div class="help-item"><kbd>右键空白</kbd> 添加节点</div>
             <div class="help-item"><kbd>双击节点</kbd> 编辑文本</div>
             <div class="help-item"><kbd>Delete</kbd> 删除选中</div>
             <div class="help-item"><kbd>Ctrl+A</kbd> 全选节点</div>
           </div>
           <div class="help-section">
-            <h4>连线操作</h4>
+            <h4>{helpStrings.edgeSection}</h4>
             <div class="help-item"><kbd>拖拽端口</kbd> 快速连线</div>
             <div class="help-item"><kbd>点击端口</kbd> 打开连线对话框</div>
             <div class="help-item"><kbd>双击边</kbd> 编辑标签</div>
           </div>
         {/if}
         <div class="help-section">
-          <h4>视图操作</h4>
+          <h4>{helpStrings.viewSection}</h4>
           <div class="help-item"><kbd>滚轮</kbd> 缩放</div>
           <div class="help-item"><kbd>拖拽空白</kbd> 平移画布</div>
           {#if !readonly}
@@ -2593,17 +2418,10 @@
             <div class="help-item"><kbd>Escape</kbd> 取消选择</div>
           {/if}
         </div>
-        {#if !readonly}
-          <div class="help-section">
-            <h4>撤销/重做</h4>
-            <div class="help-item"><kbd>Ctrl+Z</kbd> 撤销</div>
-            <div class="help-item"><kbd>Ctrl+Y</kbd> 重做</div>
-          </div>
-        {/if}
         {#if readonly}
           <div class="help-section readonly-hint">
-            <div class="help-item">当前图类型为预览模式</div>
-            <div class="help-item">请使用代码面板编辑</div>
+            <div class="help-item">{helpStrings.readonlyHintTitle}</div>
+            <div class="help-item">{helpStrings.readonlyHintText}</div>
           </div>
         {/if}
       </div>
@@ -2732,14 +2550,14 @@
     overflow: hidden;
     cursor: default;
     position: relative;
-    background: #fafafa;
+    background: var(--merfolk-canvas-bg, #fafafa);
   }
 
   /* 网格背景 */
   .interactive-canvas.show-grid {
     background-image:
-      linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+      linear-gradient(var(--merfolk-grid-line, rgba(0, 0, 0, 0.05)) 1px, transparent 1px),
+      linear-gradient(90deg, var(--merfolk-grid-line, rgba(0, 0, 0, 0.05)) 1px, transparent 1px);
     background-size: 20px 20px;
     background-position: -1px -1px;
   }
@@ -2758,14 +2576,20 @@
     display: block;
   }
 
+  :global(.interactive-edge-label) {
+    fill: var(--merfolk-edge-label, #333333);
+    font-size: 12px;
+    font-family: var(--merfolk-label-font, sans-serif);
+  }
+
   /* 缩放指示器 */
   .zoom-indicator {
     position: absolute;
     bottom: 12px;
     right: 12px;
     padding: 4px 8px;
-    background: rgba(0, 0, 0, 0.6);
-    color: white;
+    background: var(--merfolk-zoom-bg, rgba(0, 0, 0, 0.6));
+    color: var(--merfolk-zoom-text, #ffffff);
     font-size: 12px;
     font-family: monospace;
     border-radius: 4px;
@@ -2787,19 +2611,19 @@
   }
 
   .drag-edge-hint .hint-success {
-    background: #e8f5e9;
-    color: #2e7d32;
+    background: var(--merfolk-success-soft, #e8f5e9);
+    color: var(--merfolk-success-text, #2e7d32);
     padding: 4px 8px;
     border-radius: 4px;
-    border: 1px solid #81c784;
+    border: 1px solid var(--merfolk-success-border, #81c784);
   }
 
   .drag-edge-hint .hint-info {
-    background: #e3f2fd;
-    color: #1565c0;
+    background: var(--merfolk-info-soft, #e3f2fd);
+    color: var(--merfolk-info-text, #1565c0);
     padding: 4px 8px;
     border-radius: 4px;
-    border: 1px solid #64b5f6;
+    border: 1px solid var(--merfolk-info-border, #64b5f6);
   }
 
   /* 多选指示器 */
@@ -2808,8 +2632,8 @@
     bottom: 12px;
     left: 12px;
     padding: 6px 12px;
-    background: #1976d2;
-    color: white;
+    background: var(--merfolk-accent, #1976d2);
+    color: var(--merfolk-accent-contrast, #ffffff);
     font-size: 12px;
     font-weight: 500;
     border-radius: 4px;
@@ -2830,23 +2654,23 @@
     left: 12px;
     width: 32px;
     height: 32px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--merfolk-border, #ddd);
     border-radius: 50%;
-    background: white;
+    background: var(--merfolk-panel, #ffffff);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: #666;
+    color: var(--merfolk-text-muted, #666);
     transition: all 0.2s;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 6px var(--merfolk-shadow-soft, rgba(0, 0, 0, 0.1));
     z-index: 10;
   }
 
   .help-button:hover {
-    background: #f5f5f5;
-    color: #1976d2;
-    border-color: #1976d2;
+    background: var(--merfolk-button-hover, #f5f5f5);
+    color: var(--merfolk-accent, #1976d2);
+    border-color: var(--merfolk-accent, #1976d2);
   }
 
   /* 帮助面板 */
@@ -2855,9 +2679,9 @@
     bottom: 52px;
     left: 12px;
     width: 260px;
-    background: white;
+    background: var(--merfolk-panel, #ffffff);
     border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 20px var(--merfolk-shadow, rgba(0, 0, 0, 0.15));
     z-index: 100;
     animation: slideUp 0.2s ease;
     overflow: hidden;
@@ -2873,8 +2697,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: var(--merfolk-help-header-bg, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    color: var(--merfolk-help-header-text, #ffffff);
     font-weight: 600;
     font-size: 14px;
   }
@@ -2882,7 +2706,7 @@
   .help-close {
     background: none;
     border: none;
-    color: white;
+    color: var(--merfolk-help-header-text, #ffffff);
     font-size: 18px;
     cursor: pointer;
     opacity: 0.8;
@@ -2898,7 +2722,7 @@
 
   .help-close:hover {
     opacity: 1;
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--merfolk-help-header-hover, rgba(255, 255, 255, 0.2));
   }
 
   .help-panel-content {
@@ -2919,7 +2743,7 @@
     margin: 0 0 8px 0;
     font-size: 11px;
     font-weight: 600;
-    color: #888;
+    color: var(--merfolk-text-muted, #888);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -2929,19 +2753,19 @@
     align-items: center;
     gap: 8px;
     font-size: 13px;
-    color: #333;
+    color: var(--merfolk-text, #333);
     padding: 4px 0;
   }
 
   .help-item kbd {
-    background: linear-gradient(180deg, #fafafa 0%, #f0f0f0 100%);
-    border: 1px solid #ccc;
+    background: var(--merfolk-kbd-bg, linear-gradient(180deg, #fafafa 0%, #f0f0f0 100%));
+    border: 1px solid var(--merfolk-border-strong, #ccc);
     border-bottom-width: 2px;
     border-radius: 4px;
     padding: 2px 6px;
     font-size: 11px;
     font-family: system-ui, -apple-system, sans-serif;
-    color: #444;
+    color: var(--merfolk-text, #444);
     white-space: nowrap;
     min-width: 80px;
     text-align: center;
@@ -2949,14 +2773,14 @@
 
   /* 只读模式提示 */
   .help-section.readonly-hint {
-    background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
+    background: var(--merfolk-readonly-bg, linear-gradient(135deg, #667eea20 0%, #764ba220 100%));
     border-radius: 6px;
     padding: 12px;
     margin-top: 8px;
   }
 
   .help-section.readonly-hint .help-item {
-    color: #667eea;
+    color: var(--merfolk-readonly-text, #667eea);
     font-weight: 500;
     justify-content: center;
   }
@@ -2964,8 +2788,8 @@
   /* 框选矩形 */
   .selection-box {
     position: absolute;
-    border: 2px dashed #1976d2;
-    background: rgba(25, 118, 210, 0.1);
+    border: 2px dashed var(--merfolk-accent, #1976d2);
+    background: var(--merfolk-accent-ghost, rgba(25, 118, 210, 0.1));
     pointer-events: none;
     z-index: 100;
   }
@@ -2977,10 +2801,10 @@
     display: flex;
     gap: 1px;
     padding: 3px;
-    background: #fff;
-    border: 1px solid #dee2e6;
+    background: var(--merfolk-panel, #ffffff);
+    border: 1px solid var(--merfolk-border, #dee2e6);
     border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    box-shadow: 0 2px 8px var(--merfolk-shadow-soft, rgba(0, 0, 0, 0.12));
     z-index: 30;
   }
 
@@ -2994,17 +2818,17 @@
     border: none;
     border-radius: 4px;
     background: transparent;
-    color: #495057;
+    color: var(--merfolk-text, #495057);
     cursor: pointer;
   }
 
   .node-toolbar button:hover {
-    background: #f1f3f4;
+    background: var(--merfolk-button-hover, #f1f3f4);
   }
 
   .node-toolbar button.danger:hover {
-    background: #fff5f5;
-    color: #dc3545;
+    background: var(--merfolk-danger-soft, #fff5f5);
+    color: var(--merfolk-danger, #dc3545);
   }
 
   /* 边选中时的浮动工具栏容器 */
@@ -3025,10 +2849,10 @@
     align-items: center;
     gap: 6px;
     padding: 8px 12px;
-    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-    border: 1px solid #90caf9;
+    background: var(--merfolk-edge-toolbar-bg, linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%));
+    border: 1px solid var(--merfolk-edge-toolbar-border, #90caf9);
     border-radius: 10px;
-    box-shadow: 0 4px 16px rgba(25, 118, 210, 0.2);
+    box-shadow: 0 4px 16px var(--merfolk-edge-toolbar-shadow, rgba(25, 118, 210, 0.2));
   }
 
   .edge-toolbar button {
@@ -3041,34 +2865,34 @@
     border: 1px solid transparent;
     border-radius: 6px;
     background: transparent;
-    color: #1976d2;
+    color: var(--merfolk-accent, #1976d2);
     cursor: pointer;
     transition: all 0.15s ease;
   }
 
   .edge-toolbar button:hover {
-    background: #e3f2fd;
-    border-color: #90caf9;
+    background: var(--merfolk-accent-soft, #e3f2fd);
+    border-color: var(--merfolk-edge-toolbar-border, #90caf9);
     transform: scale(1.05);
   }
 
   .edge-toolbar button.danger:hover {
-    background: #ffebee;
-    border-color: #ef9a9a;
-    color: #dc3545;
+    background: var(--merfolk-danger-soft, #ffebee);
+    border-color: var(--merfolk-danger-border, #ef9a9a);
+    color: var(--merfolk-danger, #dc3545);
   }
 
   .edge-label-preview {
     font-size: 12px;
-    color: #555;
+    color: var(--merfolk-text, #555);
     max-width: 100px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     padding: 4px 8px;
-    border-left: 1px solid #e0e0e0;
+    border-left: 1px solid var(--merfolk-border, #e0e0e0);
     margin-left: 4px;
-    background: #f5f5f5;
+    background: var(--merfolk-panel-muted, #f5f5f5);
     border-radius: 4px;
   }
 
@@ -3078,15 +2902,15 @@
     align-items: center;
     gap: 6px;
     padding: 8px 12px;
-    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
-    border: 1px solid #81c784;
+    background: var(--merfolk-success-bar-bg, linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%));
+    border: 1px solid var(--merfolk-success-border, #81c784);
     border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
+    box-shadow: 0 4px 12px var(--merfolk-success-shadow, rgba(76, 175, 80, 0.2));
   }
 
   .quick-insert-label {
     font-size: 10px;
-    color: #2e7d32;
+    color: var(--merfolk-success-text, #2e7d32);
     font-weight: 500;
     margin-right: 2px;
   }
@@ -3098,10 +2922,10 @@
     width: 26px;
     height: 26px;
     padding: 0;
-    border: 1px solid #a5d6a7;
+    border: 1px solid var(--merfolk-success-border-strong, #a5d6a7);
     border-radius: 6px;
-    background: #fff;
-    color: #2e7d32;
+    background: var(--merfolk-panel, #ffffff);
+    color: var(--merfolk-success-text, #2e7d32);
     cursor: pointer;
     transition: all 0.15s;
   }
@@ -3111,11 +2935,11 @@
   }
 
   .quick-insert-btn:hover {
-    background: #e8f5e9;
-    border-color: #4caf50;
-    color: #1b5e20;
+    background: var(--merfolk-success-soft, #e8f5e9);
+    border-color: var(--merfolk-success, #4caf50);
+    color: var(--merfolk-success-strong, #1b5e20);
     transform: scale(1.1);
-    box-shadow: 0 2px 4px rgba(76, 175, 80, 0.25);
+    box-shadow: 0 2px 4px var(--merfolk-success-shadow-soft, rgba(76, 175, 80, 0.25));
   }
 
   /* 节点悬停效果 */
@@ -3135,7 +2959,7 @@
   .svg-container :global(g.node.selected rect),
   .svg-container :global(g.node.selected polygon),
   .svg-container :global(g.node.selected circle) {
-    stroke: #1976d2 !important;
+    stroke: var(--merfolk-accent, #1976d2) !important;
     stroke-width: 2px !important;
   }
 
@@ -3149,14 +2973,14 @@
 
   @keyframes nodeHighlightPulse {
     0%, 100% {
-      stroke: #1976d2;
+      stroke: var(--merfolk-accent, #1976d2);
       stroke-width: 2px;
       filter: drop-shadow(0 0 0 transparent);
     }
     50% {
-      stroke: #4caf50;
+      stroke: var(--merfolk-success, #4caf50);
       stroke-width: 4px;
-      filter: drop-shadow(0 0 8px rgba(76, 175, 80, 0.6));
+      filter: drop-shadow(0 0 8px var(--merfolk-success-glow, rgba(76, 175, 80, 0.6)));
     }
   }
 
@@ -3165,23 +2989,23 @@
   .svg-container :global(g.node.drag-target rect),
   .svg-container :global(g.node.drag-target polygon),
   .svg-container :global(g.node.drag-target circle) {
-    stroke: #4caf50 !important;
+    stroke: var(--merfolk-success, #4caf50) !important;
     stroke-width: 3px !important;
-    filter: drop-shadow(0 0 8px rgba(76, 175, 80, 0.5));
+    filter: drop-shadow(0 0 8px var(--merfolk-success-glow-soft, rgba(76, 175, 80, 0.5)));
     transition: all 0.15s ease;
   }
 
   /* 边选中状态 */
   .svg-container :global(path.edge-selected) {
-    stroke: #1976d2 !important;
+    stroke: var(--merfolk-accent, #1976d2) !important;
     stroke-width: 3px !important;
-    filter: drop-shadow(0 0 4px rgba(25, 118, 210, 0.5));
+    filter: drop-shadow(0 0 4px var(--merfolk-accent-glow, rgba(25, 118, 210, 0.5)));
   }
 
   .svg-container :global(.render-error) {
     padding: 20px;
     text-align: center;
-    color: #d32f2f;
+    color: var(--merfolk-danger, #d32f2f);
   }
 
   .svg-container :global(.error-title) {
@@ -3192,7 +3016,7 @@
 
   .svg-container :global(.error-message) {
     font-size: 12px;
-    background: #ffebee;
+    background: var(--merfolk-danger-soft, #ffebee);
     padding: 10px;
     border-radius: 4px;
     text-align: left;
@@ -3208,8 +3032,8 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    background: #fafafa;
-    border: 2px dashed #ddd;
+    background: var(--merfolk-canvas-bg, #fafafa);
+    border: 2px dashed var(--merfolk-border, #ddd);
     border-radius: 8px;
     margin: 20px;
   }
@@ -3231,7 +3055,7 @@
   /* svelte-ignore css_unused_selector */
   :global(.placeholder-text h3) {
     margin: 0 0 8px 0;
-    color: #666;
+    color: var(--merfolk-text-muted, #666);
     font-size: 18px;
     font-weight: 600;
   }
@@ -3239,7 +3063,7 @@
   /* svelte-ignore css_unused_selector */
   :global(.placeholder-text p) {
     margin: 0;
-    color: #999;
+    color: var(--merfolk-text-muted, #999);
     font-size: 14px;
     line-height: 1.4;
   }

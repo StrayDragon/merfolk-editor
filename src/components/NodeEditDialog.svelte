@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { ShapeType } from '$core/model/types';
+  import type { ShapeType } from '../core/model/types';
 
   interface Props {
     /** 节点 ID */
@@ -72,20 +72,16 @@
         dialogEl.style.top = `${viewportHeight - rect.height - 16}px`;
       }
     }
-
-    // ESC 键关闭
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onCancel();
-      } else if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleConfirm();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
   });
+
+  function handleKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'Escape') {
+      onCancel();
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleConfirm();
+    }
+  }
 
   function handleConfirm(): void {
     if (text.trim()) {
@@ -103,7 +99,14 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_interactive_supports_focus -->
-<div class="dialog-backdrop" onclick={handleBackdropClick} role="dialog" aria-modal="true">
+<div
+  class="dialog-backdrop"
+  onclick={handleBackdropClick}
+  onkeydown={handleKeyDown}
+  role="dialog"
+  aria-modal="true"
+  tabindex="-1"
+>
   <div
     class="dialog"
     bind:this={dialogEl}
@@ -161,7 +164,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--merfolk-backdrop, rgba(0, 0, 0, 0.4));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -175,9 +178,9 @@
   }
 
   .dialog {
-    background: #ffffff;
+    background: var(--merfolk-panel, #ffffff);
     border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 8px 32px var(--merfolk-shadow, rgba(0, 0, 0, 0.2));
     min-width: 360px;
     max-width: 480px;
     animation: slideUp 0.2s ease;
@@ -199,21 +202,21 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid #e8e8e8;
+    border-bottom: 1px solid var(--merfolk-border, #e8e8e8);
   }
 
   .dialog-header h3 {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: var(--merfolk-text, #1a1a1a);
   }
 
   .close-btn {
     background: none;
     border: none;
     font-size: 16px;
-    color: #666;
+    color: var(--merfolk-text-muted, #666);
     cursor: pointer;
     padding: 4px 8px;
     border-radius: 4px;
@@ -221,8 +224,8 @@
   }
 
   .close-btn:hover {
-    background: #f0f0f0;
-    color: #333;
+    background: var(--merfolk-button-hover, #f0f0f0);
+    color: var(--merfolk-text, #333);
   }
 
   .dialog-body {
@@ -241,14 +244,14 @@
     display: block;
     font-size: 13px;
     font-weight: 500;
-    color: #444;
+    color: var(--merfolk-text, #444);
     margin-bottom: 8px;
   }
 
   .form-group input[type="text"] {
     width: 100%;
     padding: 10px 12px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--merfolk-border, #ddd);
     border-radius: 6px;
     font-size: 14px;
     transition: border-color 0.15s, box-shadow 0.15s;
@@ -257,8 +260,8 @@
 
   .form-group input[type="text"]:focus {
     outline: none;
-    border-color: #2196f3;
-    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+    border-color: var(--merfolk-accent, #2196f3);
+    box-shadow: 0 0 0 3px var(--merfolk-accent-glow-soft, rgba(33, 150, 243, 0.1));
   }
 
   .shape-grid {
@@ -272,23 +275,23 @@
     flex-direction: column;
     align-items: center;
     padding: 10px 4px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--merfolk-border, #e0e0e0);
     border-radius: 6px;
-    background: #fafafa;
+    background: var(--merfolk-panel-muted, #fafafa);
     cursor: pointer;
     transition: all 0.15s;
     gap: 4px;
   }
 
   .shape-option:hover {
-    border-color: #bbb;
-    background: #f0f0f0;
+    border-color: var(--merfolk-border-strong, #bbb);
+    background: var(--merfolk-button-hover, #f0f0f0);
   }
 
   .shape-option.selected {
-    border-color: #2196f3;
-    background: #e3f2fd;
-    color: #1976d2;
+    border-color: var(--merfolk-accent, #2196f3);
+    background: var(--merfolk-accent-soft, #e3f2fd);
+    color: var(--merfolk-accent, #1976d2);
   }
 
   .shape-icon {
@@ -298,13 +301,13 @@
 
   .shape-label {
     font-size: 10px;
-    color: #666;
+    color: var(--merfolk-text-muted, #666);
     text-align: center;
     line-height: 1.2;
   }
 
   .shape-option.selected .shape-label {
-    color: #1976d2;
+    color: var(--merfolk-accent, #1976d2);
   }
 
   .dialog-footer {
@@ -312,8 +315,8 @@
     justify-content: flex-end;
     gap: 8px;
     padding: 16px 20px;
-    border-top: 1px solid #e8e8e8;
-    background: #fafafa;
+    border-top: 1px solid var(--merfolk-border, #e8e8e8);
+    background: var(--merfolk-panel-muted, #fafafa);
     border-radius: 0 0 12px 12px;
   }
 
@@ -333,23 +336,22 @@
   }
 
   .btn-secondary {
-    background: #fff;
-    border-color: #ddd;
-    color: #666;
+    background: var(--merfolk-panel, #fff);
+    border-color: var(--merfolk-border, #ddd);
+    color: var(--merfolk-text-muted, #666);
   }
 
   .btn-secondary:hover:not(:disabled) {
-    background: #f5f5f5;
-    border-color: #ccc;
+    background: var(--merfolk-button-hover, #f5f5f5);
+    border-color: var(--merfolk-border-strong, #ccc);
   }
 
   .btn-primary {
-    background: #2196f3;
-    color: #fff;
+    background: var(--merfolk-accent, #2196f3);
+    color: var(--merfolk-accent-contrast, #fff);
   }
 
   .btn-primary:hover:not(:disabled) {
-    background: #1976d2;
+    background: var(--merfolk-accent-strong, #1976d2);
   }
 </style>
-
