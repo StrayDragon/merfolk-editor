@@ -6,21 +6,100 @@
   import NodeEditDialog from './NodeEditDialog.svelte';
   import EdgeAddDialog from './EdgeAddDialog.svelte';
   import EdgeEditDialog from './EdgeEditDialog.svelte';
-  import { SyncEngine } from '../core/sync/SyncEngine';
-  import type { ShapeType, StrokeType, ArrowType } from '$core/model/types';
+  import { SyncEngine, type SyncEngineOptions } from '../core/sync/SyncEngine';
+  import type { ShapeType, StrokeType, ArrowType } from '../core/model/types';
   import { detectDiagramType, type DiagramTypeInfo } from '../core/utils/DiagramTypeDetector';
+  import type { CodeChangeMeta, EditorStrings, SetCodeOptions } from '../lib/types';
+  import type { MermaidAPI } from '../lib/types';
+  import type { MermaidConfig } from 'mermaid';
 
   interface Props {
     initialCode?: string;
     /** 代码变更回调(外部使用) */
-    onCodeChange?: (code: string) => void;
+    onCodeChange?: (code: string, meta: CodeChangeMeta) => void;
     /** 清除本地草稿 */
     onClearDraft?: () => void;
     /** 画布编辑后延迟同步的时间(ms) */
     syncDelay?: number;
+    /** 同步引擎配置 */
+    sync?: SyncEngineOptions;
+    /** 只读模式 */
+    readOnly?: boolean;
+    /** 初始是否显示代码面板 */
+    showCodePanel?: boolean;
+    /** UI 文案覆写 */
+    strings?: EditorStrings;
+    /** Mermaid 实例 */
+    mermaid?: MermaidAPI;
+    /** Mermaid 初始化配置 */
+    mermaidConfig?: MermaidConfig;
+    /** 是否初始化 Mermaid */
+    initializeMermaid?: boolean;
+    /** 尺寸变化时自动适配视图 */
+    autoFitOnResize?: boolean;
   }
 
-  let { initialCode = '', onCodeChange, onClearDraft, syncDelay = 1500 }: Props = $props();
+  let {
+    initialCode = '',
+    onCodeChange,
+    onClearDraft,
+    syncDelay = 1500,
+    sync,
+    readOnly = false,
+    showCodePanel: showCodePanelProp = true,
+    strings,
+    mermaid,
+    mermaidConfig,
+    initializeMermaid,
+    autoFitOnResize = true,
+  }: Props = $props();
+
+  const defaultStrings: Required<EditorStrings> = {
+    toolbar: {
+      title: 'Merfolk Editor',
+      code: '代码',
+      shapes: '形状',
+      clearDraft: '清除草稿',
+      zoomIn: '放大',
+      zoomOut: '缩小',
+      fitToView: '适应视图',
+    },
+    codePanel: {
+      title: 'Mermaid Code',
+      placeholder: 'Enter Mermaid flowchart code...',
+      errorLabel: 'Error',
+    },
+    overlay: {
+      editingTitle: '正在编辑画布...',
+      editingText: '正在编辑画布...',
+      editingHint: '编辑完成后将自动同步代码',
+    },
+    helpPanel: {
+      title: '快捷键帮助',
+      nodeSection: '节点操作',
+      edgeSection: '连线操作',
+      viewSection: '视图操作',
+      readonlyHintTitle: '当前图类型为预览模式',
+      readonlyHintText: '请使用代码面板编辑',
+    },
+  };
+
+  const toolbarStrings = $derived({
+    ...defaultStrings.toolbar,
+    ...(strings?.toolbar ?? {}),
+  });
+  const codePanelStrings = $derived({
+    ...defaultStrings.codePanel,
+    ...(strings?.codePanel ?? {}),
+  });
+  const overlayStrings = $derived({
+    ...defaultStrings.overlay,
+    ...(strings?.overlay ?? {}),
+  });
+  const helpPanelStrings = $derived({
+    ...defaultStrings.helpPanel,
+    ...(strings?.helpPanel ?? {}),
+  });
 
   // State
   let code = $state('');
@@ -37,7 +116,7 @@
   });
 
   // 是否为可编辑模式
-  const isEditable = $derived(diagramTypeInfo.isEditable);
+  const isEditable = $derived(diagramTypeInfo.isEditable && !readOnly);
 
   // 画布编辑模式状态
   let isCanvasEditing = $state(false);
@@ -70,7 +149,10 @@
   } | null>(null);
 
   // 同步引擎
-  const syncEngine = new SyncEngine({ debounceDelay: 300 });
+  const syncEngine = (() => {
+    const syncOptions = sync ?? {};
+    return new SyncEngine({ debounceDelay: 300, includeMerfolkMeta: true, ...syncOptions });
+  })();
 
   // 标记是否正在从画布同步(避免循环更新)
   let isSyncingFromCanvas = false;
@@ -78,28 +160,24 @@
   // Parse initial code
   onMount(() => {
     if (initialCode) {
-      code = initialCode;
-      // 检测图类型
-      diagramTypeInfo = detectDiagramType(initialCode);
-      // 仅 flowchart 需要同步引擎
-      if (diagramTypeInfo.isEditable) {
-        syncEngine.updateFromCode(initialCode);
-      }
+      applyCodeChange(initialCode, { source: 'external', silent: true }, false);
     }
 
     // 设置同步引擎回调
     syncEngine.setOnCodeChange((newCode) => {
       isSyncingFromCanvas = true;
       code = newCode;
-      onCodeChange?.(newCode);
+      onCodeChange?.(newCode, { source: 'canvas', silent: false });
       // 使用 setTimeout 确保在下一个 tick 重置标记
       setTimeout(() => {
         isSyncingFromCanvas = false;
       }, 0);
     });
 
-    // 全局键盘事件监听
-    document.addEventListener('keydown', handleGlobalKeyDown);
+  });
+
+  $effect.pre(() => {
+    showCode = showCodePanelProp ?? true;
   });
 
   onDestroy(() => {
@@ -110,41 +188,12 @@
     if (interactionErrorTimer) {
       clearTimeout(interactionErrorTimer);
     }
-    document.removeEventListener('keydown', handleGlobalKeyDown);
   });
-
-  /**
-   * 全局键盘事件处理
-   */
-  function handleGlobalKeyDown(e: KeyboardEvent): void {
-    // 如果焦点在输入框或编辑器中,不处理快捷键
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-      return;
-    }
-
-    // Ctrl+Z / Cmd+Z: 撤销
-    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-      e.preventDefault();
-      handleUndo();
-      return;
-    }
-
-    // Ctrl+Y / Cmd+Shift+Z: 重做
-    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
-      e.preventDefault();
-      handleRedo();
-      return;
-    }
-  }
 
   /**
    * Handle code changes from editor
    */
-  function handleCodeChange(newCode: string): void {
-    // 如果是从画布同步来的,不需要再更新
-    if (isSyncingFromCanvas) return;
-
+  function applyCodeChange(newCode: string, meta: CodeChangeMeta, notify: boolean): void {
     code = newCode;
     parseError = null;
 
@@ -160,7 +209,15 @@
       }
     }
 
-    onCodeChange?.(newCode);
+    if (notify && !meta.silent) {
+      onCodeChange?.(newCode, meta);
+    }
+  }
+
+  function handleCodeChange(newCode: string): void {
+    // 如果是从画布同步来的,不需要再更新
+    if (isSyncingFromCanvas) return;
+    applyCodeChange(newCode, { source: 'code', silent: false }, true);
   }
 
   /**
@@ -178,15 +235,6 @@
   }
 
   /**
-   * Handle node move (仅保存位置,不触发代码更新)
-   */
-  function handleNodeMove(nodeId: string, x: number, y: number): void {
-    console.log(`[Editor] Node ${nodeId} moved to (${x}, ${y})`);
-    // 更新同步引擎保存位置(不会触发代码更新)
-    syncEngine.updateNodePosition(nodeId, x, y);
-  }
-
-  /**
    * 获取同步引擎(供外部使用)
    */
   export function getSyncEngine(): SyncEngine {
@@ -194,9 +242,28 @@
   }
 
   /**
+   * 获取当前 Mermaid 代码
+   */
+  export function getCode(): string {
+    return code;
+  }
+
+  /**
+   * 外部设置 Mermaid 代码
+   */
+  export function setCode(newCode: string, options: SetCodeOptions = {}): void {
+    const notify = resolveNotify(options);
+    const meta: CodeChangeMeta = {
+      source: options.source ?? 'external',
+      silent: !notify,
+    };
+    applyCodeChange(newCode, meta, notify);
+  }
+
+  /**
    * Toggle code panel visibility
    */
-  function toggleCodePanel(): void {
+  export function toggleCodePanel(): void {
     showCode = !showCode;
   }
 
@@ -205,30 +272,36 @@
    */
   let canvasRef: InteractiveCanvas | null = null;
 
-  function fitToView(): void {
+  export function fitToView(): void {
     canvasRef?.fitToView();
   }
 
-  function zoomIn(): void {
+  export function zoomIn(): void {
     canvasRef?.zoomIn();
   }
 
-  function zoomOut(): void {
+  export function zoomOut(): void {
     canvasRef?.zoomOut();
   }
 
-  /**
-   * 撤销
-   */
-  function handleUndo(): void {
-    syncEngine.undo();
+  export function resetZoom(): void {
+    canvasRef?.resetZoom();
   }
 
-  /**
-   * 重做
-   */
-  function handleRedo(): void {
-    syncEngine.redo();
+  export function refresh(): void {
+    canvasRef?.refresh();
+  }
+
+  export function resize(): void {
+    canvasRef?.resize();
+  }
+
+  export function showCodePanel(): void {
+    showCode = true;
+  }
+
+  export function hideCodePanel(): void {
+    showCode = false;
   }
 
   /**
@@ -503,9 +576,21 @@
       syncTimer = null;
     }, syncDelay);
   }
+
+  function resolveNotify(options: SetCodeOptions): boolean {
+    if (options.notify !== undefined) {
+      return options.notify;
+    }
+    if (options.silent !== undefined) {
+      return !options.silent;
+    }
+    return false;
+  }
 </script>
 
-<div class="editor">
+<div
+  class="editor merfolk-editor"
+>
   <Toolbar
     {showCode}
     onToggleCode={toggleCodePanel}
@@ -513,10 +598,7 @@
     onFitToView={fitToView}
     onZoomIn={zoomIn}
     onZoomOut={zoomOut}
-    onUndo={isEditable ? handleUndo : undefined}
-    onRedo={isEditable ? handleRedo : undefined}
-    canUndo={isEditable && syncEngine.canUndo()}
-    canRedo={isEditable && syncEngine.canRedo()}
+    strings={toolbarStrings}
   />
 
   <!-- 图类型提示 -->
@@ -541,7 +623,6 @@
         readonly={!isEditable}
         onError={handleRenderError}
         onNodeSelect={isEditable ? handleNodeSelect : undefined}
-        onNodeMove={isEditable ? handleNodeMove : undefined}
         onDeleteNode={isEditable ? handleDeleteNode : undefined}
         onAddNode={isEditable ? handleAddNode : undefined}
         onEditNode={isEditable ? handleEditNode : undefined}
@@ -552,6 +633,11 @@
         onInsertNodeOnEdge={isEditable ? handleInsertNodeOnEdge : undefined}
         onEditStart={isEditable ? handleCanvasEditStart : undefined}
         onEditEnd={isEditable ? handleCanvasEditEnd : undefined}
+        {mermaid}
+        {mermaidConfig}
+        {initializeMermaid}
+        {autoFitOnResize}
+        strings={helpPanelStrings}
       />
     </div>
 
@@ -561,14 +647,16 @@
           {code}
           error={parseError}
           onCodeChange={handleCodeChange}
+          readOnly={readOnly}
+          strings={codePanelStrings}
         />
         <!-- 编辑遮盖层 -->
         {#if isCanvasEditing}
           <div class="code-overlay">
             <div class="overlay-content">
               <div class="overlay-icon">🎨</div>
-              <div class="overlay-text">正在编辑画布...</div>
-              <div class="overlay-hint">编辑完成后将自动同步代码</div>
+              <div class="overlay-text">{overlayStrings.editingText}</div>
+              <div class="overlay-hint">{overlayStrings.editingHint}</div>
             </div>
           </div>
         {/if}
@@ -625,7 +713,7 @@
     flex-direction: column;
     width: 100%;
     height: 100%;
-    background: #f5f5f5;
+    background: var(--merfolk-bg, #f5f5f5);
   }
 
   /* 图类型提示横幅 */
@@ -634,9 +722,9 @@
     align-items: center;
     gap: 12px;
     padding: 10px 16px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    background: var(--merfolk-banner-bg, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    color: var(--merfolk-banner-text, #ffffff);
+    box-shadow: 0 2px 8px var(--merfolk-banner-shadow, rgba(102, 126, 234, 0.3));
   }
 
   .banner-icon {
@@ -670,8 +758,8 @@
   .canvas-container {
     flex: 1;
     min-width: 0;
-    background: #ffffff;
-    border-right: 1px solid #e0e0e0;
+    background: var(--merfolk-panel, #ffffff);
+    border-right: 1px solid var(--merfolk-border, #e0e0e0);
   }
 
   .canvas-container.full-width {
@@ -698,7 +786,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(30, 30, 30, 0.85);
+    background: var(--merfolk-overlay-bg, rgba(30, 30, 30, 0.85));
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
@@ -708,7 +796,7 @@
 
   .overlay-content {
     text-align: center;
-    color: #ffffff;
+    color: var(--merfolk-overlay-text, #ffffff);
     padding: 24px;
   }
 
@@ -726,7 +814,7 @@
 
   .overlay-hint {
     font-size: 12px;
-    color: #888888;
+    color: var(--merfolk-overlay-muted, #888888);
   }
 
   @keyframes pulse {
@@ -741,11 +829,11 @@
     max-width: 320px;
     padding: 10px 14px;
     border-radius: 8px;
-    background: rgba(35, 35, 35, 0.92);
-    color: #ffffff;
+    background: var(--merfolk-toast-bg, rgba(35, 35, 35, 0.92));
+    color: var(--merfolk-toast-text, #ffffff);
     font-size: 12px;
     line-height: 1.4;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 6px 18px var(--merfolk-toast-shadow, rgba(0, 0, 0, 0.18));
     z-index: 20;
   }
 </style>
