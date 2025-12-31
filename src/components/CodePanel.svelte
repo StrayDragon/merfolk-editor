@@ -3,14 +3,21 @@
     code: string;
     error?: string | null;
     onCodeChange: (code: string) => void;
+    readOnly?: boolean;
+    strings?: {
+      title?: string;
+      placeholder?: string;
+      errorLabel?: string;
+    };
   }
 
-  let { code, error = null, onCodeChange }: Props = $props();
+  let { code, error = null, onCodeChange, readOnly = false, strings }: Props = $props();
 
   let textareaEl: HTMLTextAreaElement;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   function handleInput(event: Event): void {
+    if (readOnly) return;
     const target = event.target as HTMLTextAreaElement;
     const newCode = target.value;
 
@@ -25,6 +32,7 @@
   }
 
   function handleKeyDown(event: KeyboardEvent): void {
+    if (readOnly) return;
     // Handle Tab key for indentation
     if (event.key === 'Tab') {
       event.preventDefault();
@@ -44,9 +52,9 @@
 
 <div class="code-panel">
   <div class="code-header">
-    <span class="code-title">Mermaid Code</span>
+    <span class="code-title">{strings?.title ?? 'Mermaid Code'}</span>
     {#if error}
-      <span class="code-error" title={error}>Error</span>
+      <span class="code-error" title={error}>{strings?.errorLabel ?? 'Error'}</span>
     {/if}
   </div>
 
@@ -57,7 +65,8 @@
       oninput={handleInput}
       onkeydown={handleKeyDown}
       spellcheck="false"
-      placeholder="Enter Mermaid flowchart code..."
+      placeholder={strings?.placeholder ?? 'Enter Mermaid flowchart code...'}
+      readonly={readOnly}
     ></textarea>
   </div>
 
@@ -73,7 +82,7 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: #1e1e1e;
+    background: var(--merfolk-code-bg, #1e1e1e);
   }
 
   .code-header {
@@ -81,21 +90,21 @@
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    background: #252526;
-    border-bottom: 1px solid #3c3c3c;
+    background: var(--merfolk-code-panel, #252526);
+    border-bottom: 1px solid var(--merfolk-code-border, #3c3c3c);
   }
 
   .code-title {
-    color: #cccccc;
+    color: var(--merfolk-code-title, #cccccc);
     font-size: 12px;
     font-weight: 500;
   }
 
   .code-error {
-    color: #f48771;
+    color: var(--merfolk-code-error, #f48771);
     font-size: 11px;
     padding: 2px 6px;
-    background: rgba(244, 135, 113, 0.1);
+    background: var(--merfolk-code-error-bg, rgba(244, 135, 113, 0.1));
     border-radius: 3px;
   }
 
@@ -111,23 +120,23 @@
     border: none;
     outline: none;
     resize: none;
-    background: #1e1e1e;
-    color: #d4d4d4;
-    font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+    background: var(--merfolk-code-bg, #1e1e1e);
+    color: var(--merfolk-code-text, #d4d4d4);
+    font-family: var(--merfolk-code-font, ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace);
     font-size: 13px;
     line-height: 1.5;
     tab-size: 4;
   }
 
   textarea::placeholder {
-    color: #6a6a6a;
+    color: var(--merfolk-code-muted, #6a6a6a);
   }
 
   .error-message {
     padding: 8px 12px;
-    background: rgba(244, 135, 113, 0.1);
-    border-top: 1px solid #f48771;
-    color: #f48771;
+    background: var(--merfolk-code-error-bg, rgba(244, 135, 113, 0.1));
+    border-top: 1px solid var(--merfolk-code-error, #f48771);
+    color: var(--merfolk-code-error, #f48771);
     font-size: 12px;
     max-height: 80px;
     overflow-y: auto;
