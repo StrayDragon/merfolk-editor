@@ -5,7 +5,9 @@
  * 然后我们可以用自己的渲染器来渲染,从而支持交互式编辑.
  */
 
-import mermaid from 'mermaid';
+import type { MermaidConfig } from 'mermaid';
+import type { MermaidAPI } from '../utils/mermaid';
+import { ensureMermaidInitialized, resolveMermaidApi } from '../utils/mermaid';
 
 /**
  * 节点数据结构(从 Mermaid 提取)
@@ -58,18 +60,19 @@ export interface ExtractedData {
 /**
  * 从 Mermaid 代码提取结构化数据
  */
-export async function extractMermaidData(code: string): Promise<ExtractedData> {
-  // 确保 mermaid 已初始化
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: 'default',
-    flowchart: {
-      useMaxWidth: true,
-      htmlLabels: false, // 使用 SVG 标签以便于操作
-      curve: 'basis',
-    },
-    securityLevel: 'loose',
-  });
+export async function extractMermaidData(
+  code: string,
+  options: {
+    mermaid?: MermaidAPI;
+    mermaidConfig?: MermaidConfig;
+    initializeMermaid?: boolean;
+  } = {}
+): Promise<ExtractedData> {
+  const mermaidApi = resolveMermaidApi(options.mermaid);
+  const hasWindowMermaid =
+    typeof window !== 'undefined' && !!(window as typeof window & { mermaid?: MermaidAPI }).mermaid;
+  const shouldInit = options.initializeMermaid ?? (!options.mermaid && !hasWindowMermaid);
+  ensureMermaidInitialized(mermaidApi, options.mermaidConfig, shouldInit);
 
   try {
     // 使用 mermaid 的内部 API 解析代码

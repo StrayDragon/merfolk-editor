@@ -13,6 +13,17 @@ export interface FlowchartData {
   edges: EdgeData[];
   subGraphs: SubGraphData[];
   classDefs?: Record<string, { styles: string[]; textStyles: string[] }>;
+  meta?: FlowchartMeta;
+}
+
+export interface MerfolkMeta {
+  positions?: Record<string, { x: number; y: number }>;
+  [key: string]: unknown;
+}
+
+export interface FlowchartMeta {
+  headerLines?: string[];
+  merfolk?: MerfolkMeta;
 }
 
 /**
@@ -26,6 +37,7 @@ export class FlowchartModel extends EventEmitter<ModelChangeEvent> {
   private _subGraphs: Map<string, FlowSubGraph> = new Map();
   private _classDefs: Map<string, { styles: string[]; textStyles: string[] }> =
     new Map();
+  private _meta: FlowchartMeta = {};
 
   // Batch update state
   private _batchDepth = 0;
@@ -70,6 +82,14 @@ export class FlowchartModel extends EventEmitter<ModelChangeEvent> {
 
   get edgeCount(): number {
     return this._edges.size;
+  }
+
+  get meta(): FlowchartMeta {
+    return this._meta;
+  }
+
+  set meta(value: FlowchartMeta | undefined) {
+    this._meta = value ?? {};
   }
 
   // ============ Node Operations ============
@@ -381,6 +401,7 @@ export class FlowchartModel extends EventEmitter<ModelChangeEvent> {
       edges: this.edges.map((e) => e.toData()),
       subGraphs: this.subGraphs.map((s) => s.toData()),
       classDefs: Object.keys(classDefs).length > 0 ? classDefs : undefined,
+      meta: Object.keys(this._meta).length > 0 ? { ...this._meta } : undefined,
     };
   }
 
@@ -413,6 +434,10 @@ export class FlowchartModel extends EventEmitter<ModelChangeEvent> {
       }
     }
 
+    if (data.meta) {
+      model._meta = { ...data.meta };
+    }
+
     // Sync edge counter with existing numeric edge IDs
     let maxCounter = 0;
     for (const edgeId of model._edges.keys()) {
@@ -437,6 +462,7 @@ export class FlowchartModel extends EventEmitter<ModelChangeEvent> {
     this._classDefs.clear();
     this._direction = 'TB';
     this._edgeCounter = 0;
+    this._meta = {};
     this.endBatch();
   }
 

@@ -14,6 +14,10 @@ export interface SerializerOptions {
   includeStyles?: boolean;
   /** Whether to include class definitions (default: true) */
   includeClassDefs?: boolean;
+  /** Whether to include header comments/directives (default: true) */
+  includeHeaderLines?: boolean;
+  /** Whether to include merfolk metadata comment (default: true) */
+  includeMerfolkMeta?: boolean;
 }
 
 /**
@@ -55,6 +59,8 @@ export class MermaidSerializer {
       indent: options.indent ?? '    ',
       includeStyles: options.includeStyles ?? true,
       includeClassDefs: options.includeClassDefs ?? true,
+      includeHeaderLines: options.includeHeaderLines ?? true,
+      includeMerfolkMeta: options.includeMerfolkMeta ?? true,
     };
   }
 
@@ -63,6 +69,12 @@ export class MermaidSerializer {
    */
   serialize(model: FlowchartModel): string {
     const lines: string[] = [];
+
+    const headerLines = this.serializeHeader(model);
+    if (headerLines.length > 0) {
+      lines.push(...headerLines);
+      lines.push('');
+    }
 
     // Graph declaration
     lines.push(`flowchart ${model.direction}`);
@@ -152,6 +164,22 @@ export class MermaidSerializer {
     }
 
     return lines.join('\n');
+  }
+
+  private serializeHeader(model: FlowchartModel): string[] {
+    const lines: string[] = [];
+    const meta = model.meta;
+
+    if (this.options.includeHeaderLines && meta?.headerLines?.length) {
+      lines.push(...meta.headerLines);
+    }
+
+    if (this.options.includeMerfolkMeta && meta?.merfolk && Object.keys(meta.merfolk).length > 0) {
+      const json = JSON.stringify(meta.merfolk);
+      lines.push(`%%{merfolk: ${json}}%%`);
+    }
+
+    return lines;
   }
 
   /**

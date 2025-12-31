@@ -1,4 +1,5 @@
 import { FlowchartModel } from '../model/FlowchartModel';
+import type { MerfolkMeta } from '../model/FlowchartModel';
 import type { NodeData } from '../model/Node';
 import type { EdgeData } from '../model/Edge';
 import type { SubGraphData } from '../model/SubGraph';
@@ -16,6 +17,8 @@ interface ParseContext {
   classDefs: Map<string, { styles: string[]; textStyles: string[] }>;
   subGraphStack: string[];
   edgeCounter: number;
+  headerLines: string[];
+  merfolkMeta?: MerfolkMeta;
 }
 
 /**
@@ -97,7 +100,7 @@ export class MermaidParser {
    */
   parse(text: string): FlowchartModel {
     const ctx = this.createContext();
-    const lines = this.preprocess(text);
+    const lines = this.preprocess(text, ctx);
 
     // Parse graph declaration
     const startIndex = this.parseGraphDeclaration(lines, ctx);
@@ -121,24 +124,59 @@ export class MermaidParser {
       classDefs: new Map(),
       subGraphStack: [],
       edgeCounter: 0,
+      headerLines: [],
     };
   }
 
   /**
    * Preprocess text: remove comments, normalize whitespace
    */
-  private preprocess(text: string): string[] {
-    return text
-      .split('\n')
-      .map((line) => {
-        // Remove %% comments
-        const commentIndex = line.indexOf('%%');
-        if (commentIndex !== -1) {
-          line = line.substring(0, commentIndex);
+  private preprocess(text: string, ctx: ParseContext): string[] {
+    const lines: string[] = [];
+    let seenGraphDeclaration = false;
+
+    for (const rawLine of text.split('\n')) {
+      let line = rawLine.trim();
+      if (!line) {
+        continue;
+      }
+
+      if (line.startsWith('%%')) {
+        const directiveMatch = line.match(/^%%\{(.+)\}%%$/);
+        if (directiveMatch) {
+          const directive = directiveMatch[1].trim();
+          if (directive.startsWith('merfolk:')) {
+            const jsonText = directive.slice('merfolk:'.length).trim();
+            try {
+              ctx.merfolkMeta = JSON.parse(jsonText) as MerfolkMeta;
+            } catch {
+              if (!seenGraphDeclaration) {
+                ctx.headerLines.push(line);
+              }
+            }
+          } else if (!seenGraphDeclaration) {
+            ctx.headerLines.push(line);
+          }
+        } else if (!seenGraphDeclaration) {
+          ctx.headerLines.push(line);
         }
-        return line.trim();
-      })
-      .filter((line) => line.length > 0);
+        continue;
+      }
+
+      const commentIndex = line.indexOf('%%');
+      if (commentIndex !== -1) {
+        line = line.substring(0, commentIndex).trim();
+        if (!line) continue;
+      }
+
+      lines.push(line);
+
+      if (!seenGraphDeclaration && /^(flowchart|graph)\b/i.test(line)) {
+        seenGraphDeclaration = true;
+      }
+    }
+
+    return lines;
   }
 
   /**
@@ -1048,6 +1086,13 @@ export class MermaidParser {
     // Add class definitions
     for (const [name, def] of ctx.classDefs) {
       model.defineClass(name, def.styles, def.textStyles);
+    }
+
+    if (ctx.headerLines.length > 0 || ctx.merfolkMeta) {
+      model.meta = {
+        headerLines: ctx.headerLines.length > 0 ? [...ctx.headerLines] : undefined,
+        merfolk: ctx.merfolkMeta,
+      };
     }
 
     return model;

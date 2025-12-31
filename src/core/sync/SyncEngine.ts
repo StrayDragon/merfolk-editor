@@ -21,6 +21,8 @@ export interface SyncEngineOptions {
   debounceDelay?: number;
   /** 历史记录最大长度 */
   maxHistoryLength?: number;
+  /** 是否把位置元信息写入 mermaid 注释块 */
+  includeMerfolkMeta?: boolean;
 }
 
 /**
@@ -46,7 +48,10 @@ export class SyncEngine {
   private model: FlowchartModel;
   private nodePositions: Map<string, { x: number; y: number }>;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private options: Required<Pick<SyncEngineOptions, 'debounceDelay'>> & { maxHistoryLength: number };
+  private options: Required<Pick<SyncEngineOptions, 'debounceDelay'>> & {
+    maxHistoryLength: number;
+    includeMerfolkMeta: boolean;
+  };
 
   // 回调
   private onCodeChange?: (code: string) => void;
@@ -57,12 +62,15 @@ export class SyncEngine {
 
   constructor(options: SyncEngineOptions = {}) {
     this.parser = new MermaidParser();
-    this.serializer = new MermaidSerializer();
+    this.serializer = new MermaidSerializer({
+      includeMerfolkMeta: options.includeMerfolkMeta ?? false,
+    });
     this.model = new FlowchartModel();
     this.nodePositions = new Map();
     this.options = {
       debounceDelay: options.debounceDelay ?? 300,
       maxHistoryLength: options.maxHistoryLength ?? 50,
+      includeMerfolkMeta: options.includeMerfolkMeta ?? false,
     };
   }
 
@@ -79,6 +87,11 @@ export class SyncEngine {
   updateFromCode(code: string): FlowchartModel {
     try {
       this.model = this.parser.parse(code);
+
+      const metaPositions = this.model.meta?.merfolk?.positions;
+      if (metaPositions) {
+        this.importPositions(metaPositions);
+      }
 
       // 恢复保存的位置信息
       for (const node of this.model.nodes) {
@@ -365,6 +378,7 @@ export class SyncEngine {
    * 获取当前代码
    */
   getCode(): string {
+    this.updateMerfolkMeta();
     return this.serializer.serialize(this.model);
   }
 
@@ -391,6 +405,7 @@ export class SyncEngine {
     }
 
     this.debounceTimer = setTimeout(() => {
+      this.updateMerfolkMeta();
       const code = this.serializer.serialize(this.model);
       this.onCodeChange?.(code);
       this.debounceTimer = null;
@@ -448,6 +463,7 @@ export class SyncEngine {
     this.importPositions(entry.positions);
 
     // 立即同步代码
+    this.updateMerfolkMeta();
     const code = this.serializer.serialize(this.model);
     this.onCodeChange?.(code);
   }
@@ -516,6 +532,23 @@ export class SyncEngine {
   clearHistory(): void {
     this.undoStack = [];
     this.redoStack = [];
+  }
+
+  private updateMerfolkMeta(): void {
+    if (!this.options.includeMerfolkMeta) return;
+
+    const positions = this.exportPositions();
+    const meta = this.model.meta ?? {};
+    const merfolk = { ...(meta.merfolk ?? {}) };
+
+    if (Object.keys(positions).length > 0) {
+      merfolk.positions = positions;
+    } else if ('positions' in merfolk) {
+      delete merfolk.positions;
+    }
+
+    const nextMerfolk = Object.keys(merfolk).length > 0 ? merfolk : undefined;
+    this.model.meta = { ...meta, merfolk: nextMerfolk };
   }
 
   /**
