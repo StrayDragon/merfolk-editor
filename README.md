@@ -155,6 +155,93 @@ const editor = new MerfolkEditor(container, {
 <Editor initialCode={code} onCodeChange={handleChange} />
 ```
 
+### 外部集成指南（快速步骤）
+
+1. **安装依赖**
+   ```bash
+   npm i merfolk-editor mermaid d3 @dagrejs/dagre svelte
+   # 或 pnpm add merfolk-editor mermaid d3 @dagrejs/dagre svelte
+   ```
+2. **选择集成方式**
+   - **打包环境 (Vite/Webpack 等)**  
+     ```ts
+     import MerfolkEditor from 'merfolk-editor';
+     import 'merfolk-editor/style';
+
+     const editor = new MerfolkEditor(document.getElementById('app')!, {
+       initialCode: 'flowchart TB\nA-->B',
+       onCodeChange: (code) => console.log(code),
+       readOnly: false,
+       autoFitOnResize: true,
+     });
+     ```
+     提示: 确保容器有尺寸（如全屏 `#app { width: 100vw; height: 100vh; }`）。
+   - **Svelte 组件**  
+     直接 `<Editor />`，已包含画布 + 代码面板 + 工具栏：
+     ```svelte
+     <Editor
+       initialCode={code}
+       showCodePanel={true}
+       onCodeChange={(next, meta) => console.log(meta.source, next)}
+     />
+     ```
+   - **纯 HTML / WebView (无需打包)**  
+     ```html
+     <link rel="stylesheet" href="./node_modules/merfolk-editor/dist/standalone/merfolk-editor.css" />
+     <script src="./node_modules/merfolk-editor/dist/standalone/merfolk-editor.iife.js"></script>
+     <div id="app"></div>
+     <script>
+       const editor = new window.MerfolkEditor(document.getElementById('app'), {
+         initialCode: 'flowchart TB\nA-->B',
+       });
+     <\/script>
+     ```
+   - **仅复用核心/类型（无 UI）**  
+     用于解析/序列化或在其他框架中封装：
+     ```ts
+     import { MermaidParser, MermaidSerializer, FlowchartModel } from 'merfolk-editor';
+     ```
+3. **常用选项**  
+   - `onCodeChange(code, meta)`：监听代码变更（来源 `canvas`/`code`/`external`）。  
+   - `readOnly`：只读模式，禁用画布与代码编辑。  
+   - `showCodePanel`：初始化时显示代码面板。  
+   - `autoFitOnResize`：容器尺寸变化时自动适配视图。  
+   - `mermaid` / `mermaidConfig`：复用外部 Mermaid 实例或配置。
+4. **VSCode Webview 提示**  
+   - 在扩展侧使用 `webview.asWebviewUri` 引入 `node_modules/merfolk-editor/dist/standalone/merfolk-editor.iife.js` 和对应 CSS。  
+   - Webview 内保持 `div#app` 全屏，`new window.MerfolkEditor(app, { initialCode, readOnly })`。  
+   - 与扩展通信：在 `onCodeChange` 里 `postMessage` 回扩展，扩展收到文件更新再 `webview.postMessage({ type: 'setCode', payload })`。
+5. **Obsidian 插件提示**  
+   - 在 `onload` 注册 markdown 代码块处理器：`registerMarkdownCodeBlockProcessor('merfolk', (src, el) => { new MerfolkEditor(el, { initialCode: src, readOnly: true }); });`。  
+   - 若需要可编辑视图，可创建自定义 `ItemView`，在 `onOpen` 时挂载 `MerfolkEditor` 并监听 `onCodeChange` 写回文件。  
+   - 资源引入：推荐在插件打包时复制 `dist/standalone/merfolk-editor.iife.js` 与 CSS 到插件目录，或使用 `require.resolve` 计算路径后注入 `<script>/<link>`。
+
+### 仅复用核心/类型 (TS 依赖)
+
+无需挂载 UI, 也可以把 `merfolk-editor` 当成纯 TypeScript 依赖来解析/序列化 Mermaid 代码或共享类型定义:
+
+```ts
+import {
+  MermaidParser,
+  MermaidSerializer,
+  FlowchartModel,
+  type NodeData,
+  type EdgeData,
+} from 'merfolk-editor';
+
+const parser = new MermaidParser();
+const model = parser.parse('flowchart TB\nA-->B');
+
+// 直接操作模型或使用命令系统
+model.addNode({ id: 'C', text: 'New node' });
+
+// 序列化回 Mermaid 文本
+const serializer = new MermaidSerializer();
+const code = serializer.serialize(model);
+```
+
+以上导出会同时包含核心模型、解析/序列化器以及命令系统, 方便其他 TS 项目复用类型或进行无头处理。
+
 ## 技术栈
 
 - **Svelte** - UI 框架

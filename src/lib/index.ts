@@ -207,6 +207,9 @@ export default class MerfolkEditor {
 export type { EditorOptions, EditorStrings, CodeChangeMeta, SetCodeOptions } from './types';
 export type { MermaidAPI } from './types';
 
+// Core/headless exports for TS consumers
+export * from '../core';
+
 // Re-export types from core
 export type { NodeData, EdgeData } from '../core/model';
 export type { NodePosition } from '../core/sync';
