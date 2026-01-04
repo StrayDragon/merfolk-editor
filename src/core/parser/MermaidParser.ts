@@ -260,7 +260,7 @@ export class MermaidParser {
 
       // Edge property configuration: e1@{ animate: true }
       // Distinguish from node @{} syntax by checking for edge-specific properties
-      const edgePropMatch = line.match(/^(\w+)@\{(.+?)\}$/);
+      const edgePropMatch = line.match(/^([\w-]+)@\{(.+?)\}$/);
       if (edgePropMatch) {
         const propsStr = edgePropMatch[2];
         // Edge properties contain animate/animation, node properties contain shape/label
@@ -702,7 +702,7 @@ export class MermaidParser {
     // ~~~ is invisible edge (no text support)
     // Support variable length: --> (1), ---> (2), ----> (3), etc.
     // Support edge ID: e1@--> (captures e1 as edge ID)
-    const edgeRegex = /(\w+@)?(~~~|<-+>|<={2,}>|={2,}>|={2,}|<-\.+->|-\.+->|-\.+-?|o--o|x--x|--o|--x|-{2,}>|-{2,})(\|[^|]+\|)?/g;
+    const edgeRegex = /([\w-]+@)?(~~~|<-+>|<={2,}>|={2,}>|={2,}|<-\.+->|-\.+->|-\.+-?|o--o|x--x|--o|--x|-{2,}>|-{2,})(\|[^|]+\|)?/g;
 
     let lastIndex = 0;
     let match;

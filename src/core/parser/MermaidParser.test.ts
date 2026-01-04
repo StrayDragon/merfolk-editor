@@ -194,6 +194,13 @@ describe('MermaidParser', () => {
       expect(model1.edges[0].id).toBe(model2.edges[0].id);
     });
 
+    it('should parse edge IDs with hyphens', () => {
+      const model = parser.parse('flowchart TB\n  A edge-1@--> B');
+
+      expect(model.edges[0].id).toBe('edge-1');
+      expect(model.edges[0].isUserDefinedId).toBe(true);
+    });
+
     it('should parse thick edges (==>)', () => {
       const model = parser.parse('flowchart TB\n  A ==> B');
 

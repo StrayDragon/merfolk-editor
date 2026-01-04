@@ -184,7 +184,7 @@ describe('SyncEngine', () => {
 
       expect(serialized).toContain('subgraph Users["👤 用户(需求方)"]');
       expect(serialized).toContain('Future["其他 Channel<br/>(计划中)"]');
-      expect(serialized).toContain('Claude --> OpenAI');
+      expect(serialized).toMatch(/Claude\s+edge-\d+@-->\s+OpenAI/);
     });
   });
 

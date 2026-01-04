@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const chromiumExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
 const devServerPort = 5173;
-const devServerHost = '127.0.0.1';
+const devServerHost = 'localhost';
 
 export default defineConfig({
   testDir: './e2e',

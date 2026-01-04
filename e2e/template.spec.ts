@@ -1,5 +1,12 @@
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-test.skip('placeholder e2e', async () => {
-  // E2E tests are disabled until interactions stabilize.
+test('smoke loads editor UI', async ({ page }) => {
+  await page.goto('/');
+
+  await expect(page.locator('.toolbar-title')).toHaveText('Merfolk Editor');
+  await expect(page.locator('textarea[placeholder="Enter Mermaid flowchart code..."]')).toBeVisible();
+  await expect(page.locator('.interactive-canvas')).toBeVisible();
+
+  const buttonCount = await page.locator('.toolbar .toolbar-btn').count();
+  expect(buttonCount).toBeGreaterThan(3);
 });

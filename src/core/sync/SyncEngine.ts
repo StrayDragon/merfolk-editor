@@ -202,6 +202,7 @@ export class SyncEngine {
       stroke,
       arrowStart: 'none',
       arrowEnd,
+      isUserDefinedId: true,
     });
     this.debouncedSerialize();
   }
@@ -250,6 +251,7 @@ export class SyncEngine {
       animate: originalEdge.animate,
       animation: originalEdge.animation,
       length: originalEdge.length,
+      isUserDefinedId: true,
     };
 
     // 创建两条新边:source -> newNode, newNode -> target
@@ -316,7 +318,10 @@ export class SyncEngine {
       stroke?: StrokeType;
       arrowStart?: ArrowType;
       arrowEnd?: ArrowType;
-    } = {};
+      isUserDefinedId?: boolean;
+    } = {
+      isUserDefinedId: true,
+    };
 
     if ('text' in updates) {
       if (typeof updates.text === 'string') {
